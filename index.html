@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ASTER ONLINE SERVICE </title>
+    <link rel="icon" type="image/png" href="/_png.png" />
+    <link rel="apple-touch-icon" href="/_png.png" />
+    <script>
+      // Prevent "TypeError: Cannot set property fetch of #<Window> which has only a getter"
+      (function() {
+        try {
+          const originalFetch = window.fetch;
+          if (typeof originalFetch !== 'function') return;
+
+          // Define the property on the window instance. 
+          // This shadows any getter-only property on the prototype chain.
+          // We provide a dummy setter to prevent the TypeError on assignment.
+          Object.defineProperty(window, 'fetch', {
+            get: function() { return originalFetch; },
+            set: function(v) { 
+              console.warn('Attempted to overwrite window.fetch, ignored to prevent TypeError.'); 
+            },
+            configurable: true,
+            enumerable: true
+          });
+          
+          // Also try to protect it on the prototype if possible
+          const proto = Object.getPrototypeOf(window);
+          if (proto && proto.hasOwnProperty('fetch')) {
+            const desc = Object.getOwnPropertyDescriptor(proto, 'fetch');
+            if (desc && desc.configurable) {
+              Object.defineProperty(proto, 'fetch', {
+                get: function() { return originalFetch; },
+                set: function(v) { console.warn('Blocked fetch overwrite on prototype'); },
+                configurable: true,
+                enumerable: true
+              });
+            }
+          }
+        } catch (e) {
+          // If we can't redefine it, we just hope for the best.
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
