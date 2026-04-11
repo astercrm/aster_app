@@ -769,7 +769,7 @@ export default function Contacts({ contacts, setContacts }: ContactsProps) {
                       <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.teleTotalAmount}</td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.technicalTotalAmount}</td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <a 
                             href={`tel:${contact.customerContactNumber}`}
                             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 transition-colors"
