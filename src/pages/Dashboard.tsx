@@ -2,22 +2,27 @@ import { motion } from 'motion/react';
 import { Users, UserPlus, Star, TrendingUp, Phone, MessageSquare, MapPin, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  BarChart, 
-  Bar, 
+  AreaChart, 
+  Area,
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  AreaChart, 
-  Area 
 } from 'recharts';
 import { Contact } from '../types';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { api } from '../services/api';
 
 interface DashboardProps {
   contacts: Contact[];
+}
+
+// Skeleton shimmer component
+function Skeleton({ className }: { className?: string }) {
+  return (
+    <div className={`animate-pulse bg-gray-200 dark:bg-slate-700 rounded-xl ${className}`} />
+  );
 }
 
 export default function Dashboard({ contacts }: DashboardProps) {
@@ -25,6 +30,8 @@ export default function Dashboard({ contacts }: DashboardProps) {
   const [recentContacts, setRecentContacts] = useState<Contact[]>([]);
   const [dashboardStats, setDashboardStats] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const localStats = useMemo(() => {
     const total = contacts.length;
@@ -33,15 +40,14 @@ export default function Dashboard({ contacts }: DashboardProps) {
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
     const todayStr = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-    
     const activeToday = contacts.filter(c => c.date === todayStr).length;
     const newThisMonth = contacts.filter(c => {
       if (!c.date) return false;
-      const [day, monthStr, year] = c.date.split('-');
-      const monthIndex = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(monthStr);
+      const [, monthStr, year] = c.date.split('-');
+      const monthIndex = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(monthStr);
       return monthIndex === currentMonth && parseInt(year) === currentYear;
     }).length;
-    
+
     return [
       { label: 'Total Contacts', value: total.toLocaleString(), icon: Users, color: 'bg-blue-500', trend: '+12%' },
       { label: 'New This Month', value: newThisMonth.toLocaleString(), icon: UserPlus, color: 'bg-primary', trend: '+5%' },
@@ -51,7 +57,7 @@ export default function Dashboard({ contacts }: DashboardProps) {
   }, [contacts]);
 
   const localChartData = useMemo(() => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const counts: Record<string, number> = {};
     const today = new Date();
     for (let i = 5; i >= 0; i--) {
@@ -60,88 +66,110 @@ export default function Dashboard({ contacts }: DashboardProps) {
     }
     contacts.forEach(c => {
       if (!c.date) return;
-      const [day, monthStr, year] = c.date.split('-');
-      if (counts[monthStr] !== undefined) {
-        counts[monthStr]++;
-      }
+      const [, monthStr] = c.date.split('-');
+      if (counts[monthStr] !== undefined) counts[monthStr]++;
     });
     return Object.entries(counts).map(([name, contacts]) => ({ name, contacts }));
   }, [contacts]);
 
+  // Show local data immediately, then fetch from API in background
   useEffect(() => {
-    const fetchData = async () => {
+    if (contacts.length > 0 && !hasFetched.current) {
+      // Instantly show local data first — no waiting
+      setDashboardStats(localStats);
+      setChartData(localChartData);
+      const sorted = [...contacts]
+        .sort((a, b) => new Date(b.date?.replace(/-/g, ' ') || '').getTime() - new Date(a.date?.replace(/-/g, ' ') || '').getTime())
+        .slice(0, 5);
+      setRecentContacts(sorted);
+      setIsLoading(false);
+    }
+  }, [contacts, localStats, localChartData]);
+
+  // Fetch API data in background without blocking UI
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
+    const fetchInBackground = async () => {
       try {
         const [recent, stats] = await Promise.all([
           api.getRecentContacts(),
           api.getStats()
         ]);
-        
-        if (recent.length > 0) {
-          setRecentContacts(recent);
-        } else {
-          const sorted = [...contacts].sort((a, b) => {
-            const dateA = new Date(a.date?.replace(/-/g, ' ') || '');
-            const dateB = new Date(b.date?.replace(/-/g, ' ') || '');
-            return dateB.getTime() - dateA.getTime();
-          }).slice(0, 5);
-          setRecentContacts(sorted);
-        }
-
-        if (stats && stats.summary) {
+        if (recent.length > 0) setRecentContacts(recent);
+        if (stats?.summary) {
           setDashboardStats(stats.summary);
           setChartData(stats.chartData);
-        } else {
-          setDashboardStats(localStats);
-          setChartData(localChartData);
         }
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-        setDashboardStats(localStats);
-        setChartData(localChartData);
+        // Silently fail — local data already showing
+        console.error('Background fetch failed:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchData();
-  }, [contacts, localStats, localChartData]);
+
+    fetchInBackground();
+  }, []);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8 animate-in fade-in duration-300">
       <header>
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard</h1>
         <p className="text-gray-500 dark:text-slate-400 mt-1">Welcome back! Here's what's happening with your contacts.</p>
       </header>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {dashboardStats.map((stat, i) => (
-          <motion.div 
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`${stat.color} p-2.5 rounded-xl text-white`}>
-                <stat.icon size={20} />
+        {isLoading && dashboardStats.length === 0 ? (
+          // Skeleton cards while loading
+          [...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">
+              <div className="flex items-center justify-between mb-4">
+                <Skeleton className="w-10 h-10" />
+                <Skeleton className="w-14 h-6" />
               </div>
-              <span className="text-xs font-bold text-primary bg-primary/10 dark:bg-primary/20 px-2 py-1 rounded-full">
-                {stat.trend}
-              </span>
+              <Skeleton className="w-24 h-4 mb-2" />
+              <Skeleton className="w-16 h-8" />
             </div>
-            <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{stat.label}</p>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</h3>
-          </motion.div>
-        ))}
+          ))
+        ) : (
+          dashboardStats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className={`${stat.color} p-2.5 rounded-xl text-white`}>
+                  <stat.icon size={20} />
+                </div>
+                <span className="text-xs font-bold text-primary bg-primary/10 dark:bg-primary/20 px-2 py-1 rounded-full">
+                  {stat.trend}
+                </span>
+              </div>
+              <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{stat.label}</p>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</h3>
+            </motion.div>
+          ))
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-8">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="font-bold text-lg dark:text-white">Contact Growth</h3>
-            <select className="text-sm bg-gray-50 dark:bg-slate-800 border-none rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none dark:text-white">
-              <option>Last 6 Months</option>
-              <option>Last Year</option>
-            </select>
-          </div>
+      {/* Chart */}
+      <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">
+        <div className="flex items-center justify-between mb-8">
+          <h3 className="font-bold text-lg dark:text-white">Contact Growth</h3>
+          <select className="text-sm bg-gray-50 dark:bg-slate-800 border-none rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-primary/20 outline-none dark:text-white">
+            <option>Last 6 Months</option>
+            <option>Last Year</option>
+          </select>
+        </div>
+        {isLoading && chartData.length === 0 ? (
+          <Skeleton className="h-[300px] w-full" />
+        ) : (
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData}>
@@ -154,7 +182,7 @@ export default function Dashboard({ contacts }: DashboardProps) {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-800" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: '#1e293b', borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', color: '#fff' }}
                   itemStyle={{ color: '#10b981' }}
                 />
@@ -162,13 +190,14 @@ export default function Dashboard({ contacts }: DashboardProps) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        )}
       </div>
 
+      {/* Recent Contacts */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
         <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
           <h3 className="font-bold text-lg dark:text-white">Recent Contacts</h3>
-          <button 
+          <button
             onClick={() => navigate('/contacts')}
             className="text-sm text-primary font-bold hover:underline"
           >
@@ -186,43 +215,58 @@ export default function Dashboard({ contacts }: DashboardProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-              {recentContacts.map((contact) => (
-                <tr key={contact.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary flex items-center justify-center font-bold text-xs">
-                        {(contact.customerName || '').split(' ').map(n => n[0]).join('')}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{contact.customerName}</p>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">{contact.customerRequirement}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-                      <Building2 size={14} className="text-gray-400" />
-                      {contact.teleCallingStaff}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
-                      <MapPin size={14} className="text-gray-400" />
-                      {contact.ctn}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <a href={`tel:${contact.customerContactNumber}`} className="p-1.5 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 text-primary dark:text-primary transition-colors">
-                        <Phone size={16} />
-                      </a>
-                      <a href={`https://wa.me/${(contact.customerContactNumber || '').replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 text-primary dark:text-primary transition-colors">
-                        <MessageSquare size={16} />
-                      </a>
-                    </div>
-                  </td>
+              {isLoading && recentContacts.length === 0 ? (
+                [...Array(3)].map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-4"><div className="flex items-center gap-3"><Skeleton className="w-8 h-8 rounded-full" /><div className="space-y-1"><Skeleton className="w-28 h-3" /><Skeleton className="w-20 h-3" /></div></div></td>
+                    <td className="px-6 py-4"><Skeleton className="w-24 h-3" /></td>
+                    <td className="px-6 py-4"><Skeleton className="w-20 h-3" /></td>
+                    <td className="px-6 py-4"><Skeleton className="w-16 h-6 ml-auto" /></td>
+                  </tr>
+                ))
+              ) : recentContacts.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-10 text-center text-sm text-gray-400">No contacts yet.</td>
                 </tr>
-              ))}
+              ) : (
+                recentContacts.map((contact) => (
+                  <tr key={contact.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 dark:bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
+                          {(contact.customerName || '').split(' ').map(n => n[0]).join('')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{contact.customerName}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{contact.customerRequirement}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                        <Building2 size={14} className="text-gray-400" />
+                        {contact.teleCallingStaff}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-slate-300">
+                        <MapPin size={14} className="text-gray-400" />
+                        {contact.ctn}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href={`tel:${contact.customerContactNumber}`} className="p-1.5 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 text-primary transition-colors">
+                          <Phone size={16} />
+                        </a>
+                        <a href={`https://wa.me/${(contact.customerContactNumber || '').replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="p-1.5 rounded-lg hover:bg-primary/10 dark:hover:bg-primary/20 text-primary transition-colors">
+                          <MessageSquare size={16} />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
