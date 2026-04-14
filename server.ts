@@ -7,7 +7,7 @@ import multer from 'multer';
 import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import nodemailer from 'nodemailer';
-
+import sharp from 'sharp';
 dotenv.config({ path: '.env.local' });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -113,27 +113,42 @@ async function startServer() {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   });
 
-  app.post('/api/upload', upload.single('file'), async (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded.' });
-    }
-    const file = req.file;
-    const fileName = `${Date.now()}-${file.originalname.replace(/\s/g, '-')}`;
-    
-    // IMPORTANT: Create a 'screenshots' bucket in your Supabase project and set it to public.
-    const { error } = await supabase.storage
-      .from('screenshots')
-      .upload(fileName, file.buffer, { contentType: file.mimetype });
-      
-    if (error) {
-      console.warn(`Storage error: ${error.message}. Falling back to base64 data URL.`);
-      const base64 = file.buffer.toString('base64');
-      return res.json({ url: `data:${file.mimetype};base64,${base64}` });
-    }
-    
-    const { data } = supabase.storage.from('screenshots').getPublicUrl(fileName);
-    res.json({ url: data.publicUrl });
-  });
+ app.post('/api/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded.' });
+  }
+  const file = req.file;
+
+  // ✅ Compress image before uploading
+  let uploadBuffer = file.buffer;
+  let uploadMime = file.mimetype;
+  try {
+    uploadBuffer = await sharp(file.buffer)
+      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toBuffer();
+    uploadMime = 'image/jpeg';
+  } catch (e) {
+    // If compression fails use original
+    uploadBuffer = file.buffer;
+    uploadMime = file.mimetype;
+  }
+
+  const fileName = `${Date.now()}-${file.originalname.replace(/\s/g, '-')}.jpg`;
+
+  const { error } = await supabase.storage
+    .from('screenshots')
+    .upload(fileName, uploadBuffer, { contentType: uploadMime });
+
+  if (error) {
+    console.warn(`Storage error: ${error.message}. Falling back to base64.`);
+    const base64 = uploadBuffer.toString('base64');
+    return res.json({ url: `data:${uploadMime};base64,${base64}` });
+  }
+
+  const { data } = supabase.storage.from('screenshots').getPublicUrl(fileName);
+  res.json({ url: data.publicUrl });
+});
 
   // ── AUTH ──────────────────────────────────────────────────────────────────
 
@@ -335,39 +350,41 @@ async function startServer() {
   // ── CONTACTS ──────────────────────────────────────────────────────────────
 
   app.get('/api/contacts/stats', async (req, res) => {
-    const { data, error } = await supabase.from('contacts').select('*');
-    if (error) return res.status(500).json({ message: error.message });
+  // ✅ Only fetch what we need — not all columns
+  const { data, error } = await supabase
+    .from('contacts')
+    .select('is_favorite, date, current_status');
+  if (error) return res.status(500).json({ message: error.message });
 
-    const total = data.length;
-    const favorites = data.filter((c: any) => c.is_favorite).length;
-    const today = new Date();
-    const todayStr = today.toLocaleDateString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric'
-    }).replace(/ /g, '-');
-    const activeToday = data.filter((c: any) => c.date === todayStr).length;
+  const total = data.length;
+  const favorites = data.filter((c: any) => c.is_favorite).length;
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric'
+  }).replace(/ /g, '-');
+  const activeToday = data.filter((c: any) => c.date === todayStr).length;
 
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const chartCounts: Record<string, number> = {};
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      chartCounts[months[d.getMonth()]] = 0;
-    }
-    data.forEach((c: any) => {
-      if (!c.date) return;
-      const [, monthStr] = c.date.split('-');
-      if (chartCounts[monthStr] !== undefined) chartCounts[monthStr]++;
-    });
-
-    res.json({
-      summary: [
-        { label: 'Total Contacts', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
-        { label: 'Favorites', value: favorites.toLocaleString(), icon: 'Star', color: 'bg-amber-500', trend: '+2%' },
-        { label: 'Active Today', value: activeToday.toLocaleString(), icon: 'TrendingUp', color: 'bg-violet-500', trend: '+18%' },
-      ],
-      chartData: Object.entries(chartCounts).map(([name, contacts]) => ({ name, contacts })),
-    });
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const chartCounts: Record<string, number> = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    chartCounts[months[d.getMonth()]] = 0;
+  }
+  data.forEach((c: any) => {
+    if (!c.date) return;
+    const [, monthStr] = c.date.split('-');
+    if (chartCounts[monthStr] !== undefined) chartCounts[monthStr]++;
   });
 
+  res.json({
+    summary: [
+      { label: 'Total Contacts', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
+      { label: 'Favorites', value: favorites.toLocaleString(), icon: 'Star', color: 'bg-amber-500', trend: '+2%' },
+      { label: 'Active Today', value: activeToday.toLocaleString(), icon: 'TrendingUp', color: 'bg-violet-500', trend: '+18%' },
+    ],
+    chartData: Object.entries(chartCounts).map(([name, contacts]) => ({ name, contacts })),
+  });
+});
   app.get('/api/contacts/recent', async (req, res) => {
     const { data, error } = await supabase
       .from('contacts')
