@@ -203,7 +203,6 @@ await supabase.from('user_activity').insert({
 });
 
 res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
-    res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
 
   app.post('/api/auth/signup', async (req, res) => {

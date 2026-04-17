@@ -26,15 +26,7 @@ function Skeleton({ className }: { className?: string }) {
   );
 }
 
-export default function Dashboard({ contacts, user }: DashboardProps) {
-  const navigate = useNavigate();
-  const [recentContacts, setRecentContacts] = useState<Contact[]>([]);
-  const [dashboardStats, setDashboardStats] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const hasFetched = useRef(false);
-  
-  function AdminActivityPanel() {
+function AdminActivityPanel() {
   const [summary, setSummary] = useState<any[]>([]);
   const [online, setOnline] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
@@ -227,6 +219,15 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
     </div>
   );
 }
+
+export default function Dashboard({ contacts, user }: DashboardProps) {
+  const navigate = useNavigate();
+  const [recentContacts, setRecentContacts] = useState<Contact[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const hasFetched = useRef(false);
+
   const localStats = useMemo(() => {
     const total = contacts.length;
     const favorites = contacts.filter(c => c.isFavorite).length;
