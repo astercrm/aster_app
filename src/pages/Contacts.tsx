@@ -35,6 +35,7 @@ const ITEMS_PER_PAGE = 10;
 interface ContactsProps {
   contacts: Contact[];
   setContacts: React.Dispatch<React.SetStateAction<Contact[]>>;
+  user: any;
 }
 
 const toInputDate = (dateStr: string | undefined): string => {
@@ -64,7 +65,7 @@ const fromInputDate = (dateStr: string | undefined): string => {
   }
 };
 
-export default function Contacts({ contacts, setContacts }: ContactsProps) {
+export default function Contacts({ contacts, setContacts, user }: ContactsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -210,6 +211,11 @@ export default function Contacts({ contacts, setContacts }: ContactsProps) {
     try {
       await api.deleteContact(id);
       setContacts(prev => prev.filter(c => c.id !== id));
+      await api.logActivity({
+        userId: user.id, userName: user.name, userEmail: user.email,
+        action: 'contact_deleted',
+        details: `Deleted contact ID: ${id}`,
+      });
       triggerToast('Contact deleted successfully');
     } catch (error) {
       console.error('Failed to delete contact:', error);
@@ -539,6 +545,8 @@ export default function Contacts({ contacts, setContacts }: ContactsProps) {
       technicalPaidDate: fromInputDate(modalFormData.technicalPaidDate),
       teleCallingPaidDate: fromInputDate(modalFormData.teleCallingPaidDate),
     };
+
+    
     
     // Add default fields
     contactData.isFavorite = editingContact?.isFavorite || false;
@@ -547,10 +555,20 @@ export default function Contacts({ contacts, setContacts }: ContactsProps) {
       if (editingContact) {
         const updatedContact = await api.updateContact(editingContact.id, contactData);
         setContacts(prev => prev.map(c => c.id === editingContact.id ? updatedContact : c));
+        await api.logActivity({
+          userId: user.id, userName: user.name, userEmail: user.email,
+          action: 'contact_updated',
+          details: `Updated contact: ${contactData.customerName}`,
+        });
         triggerToast('Contact updated successfully');
       } else {
         const createdContact = await api.createContact(contactData);
         setContacts(prev => [createdContact, ...prev]);
+        await api.logActivity({
+          userId: user.id, userName: user.name, userEmail: user.email,
+          action: 'contact_created',
+          details: `Created contact: ${contactData.customerName}`,
+        });
         triggerToast('Lead created successfully');
       }
       setIsModalOpen(false);

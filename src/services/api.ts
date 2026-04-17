@@ -58,4 +58,12 @@ export const api = {
   createUser: (userData: any) => request<User>('/admin/users', { method: 'POST', body: JSON.stringify(userData) }),
   updateUser: (id: string, userData: any) => request<User>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(userData) }),
   deleteUser: (id: string) => request<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+// Activity tracking
+logActivity: (data: { userId: string; userName: string; userEmail: string; action: string; details?: string }) =>
+  request<void>('/activity', { method: 'POST', body: JSON.stringify(data) }),
+getActivity: () => request<any[]>('/activity'),
+getOnlineUsers: () => request<any[]>('/activity/online'),
+getActivitySummary: () => request<any[]>('/activity/summary'),
+
 };
+

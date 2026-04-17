@@ -193,7 +193,16 @@ async function startServer() {
     if (!passwordIsValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+// ✅ Add this before res.json at end of login handler
+await supabase.from('user_activity').insert({
+  user_id: data.id,
+  user_name: data.name,
+  user_email: data.email,
+  action: 'login',
+  details: 'User logged in',
+});
 
+res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
     res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
 
@@ -511,6 +520,90 @@ async function startServer() {
     if (error) return res.status(500).json({ message: error.message });
     res.json({ success: true });
   });
+  // ── ACTIVITY TRACKING ────────────────────────────────────────────────────
+
+// Log activity
+app.post('/api/activity', async (req, res) => {
+  const { userId, userName, userEmail, action, details } = req.body;
+  if (!userId || !action) return res.status(400).json({ message: 'Missing fields' });
+  const { error } = await supabase.from('user_activity').insert({
+    user_id: userId,
+    user_name: userName,
+    user_email: userEmail,
+    action,
+    details: details || '',
+  });
+  if (error) return res.status(500).json({ message: error.message });
+  res.json({ success: true });
+});
+
+// Get all activity (admin only)
+app.get('/api/activity', async (req, res) => {
+  const { data, error } = await supabase
+    .from('user_activity')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return res.status(500).json({ message: error.message });
+  res.json(data || []);
+});
+
+// Get online users (logged in last 5 minutes)
+app.get('/api/activity/online', async (req, res) => {
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('user_activity')
+    .select('user_id, user_name, user_email, created_at')
+    .eq('action', 'heartbeat')
+    .gte('created_at', fiveMinAgo);
+  if (error) return res.status(500).json({ message: error.message });
+  // deduplicate by user_id
+  const seen = new Set();
+  const online = (data || []).filter((r: any) => {
+    if (seen.has(r.user_id)) return false;
+    seen.add(r.user_id);
+    return true;
+  });
+  res.json(online);
+});
+
+// Get session summary per user today
+app.get('/api/activity/summary', async (req, res) => {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const { data, error } = await supabase
+    .from('user_activity')
+    .select('*')
+    .gte('created_at', todayStart.toISOString())
+    .order('created_at', { ascending: true });
+  if (error) return res.status(500).json({ message: error.message });
+
+  const users: Record<string, any> = {};
+  (data || []).forEach((row: any) => {
+    if (!users[row.user_id]) {
+      users[row.user_id] = {
+        userId: row.user_id,
+        userName: row.user_name,
+        userEmail: row.user_email,
+        loginTime: null,
+        lastSeen: null,
+        actions: [],
+        contactsCreated: 0,
+        contactsEdited: 0,
+        contactsDeleted: 0,
+      };
+    }
+    const u = users[row.user_id];
+    if (row.action === 'login' && !u.loginTime) u.loginTime = row.created_at;
+    if (row.action !== 'heartbeat') u.actions.push({ action: row.action, details: row.details, time: row.created_at });
+    if (row.action === 'contact_created') u.contactsCreated++;
+    if (row.action === 'contact_updated') u.contactsEdited++;
+    if (row.action === 'contact_deleted') u.contactsDeleted++;
+    u.lastSeen = row.created_at;
+  });
+
+  res.json(Object.values(users));
+});
   // ── VITE DEV SERVER ───────────────────────────────────────────────────────
 
   if (process.env.NODE_ENV !== 'production') {

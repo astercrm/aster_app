@@ -386,6 +386,8 @@ export default function AdminPanel() {
           </motion.div>
         </div>
       )}
+      
     </div>
+    
   );
 }

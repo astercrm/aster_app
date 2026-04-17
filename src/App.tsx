@@ -51,7 +51,32 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+// ✅ Heartbeat — sends every 2 minutes to track online users
+useEffect(() => {
+  if (!user) return;
+  
+  // Log login activity
+  api.logActivity({
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    action: 'login',
+    details: 'User opened app',
+  });
 
+  // Send heartbeat every 2 minutes
+  const interval = setInterval(() => {
+    api.logActivity({
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      action: 'heartbeat',
+      details: '',
+    });
+  }, 2 * 60 * 1000);
+
+  return () => clearInterval(interval);
+}, [user]);
   return (
     <Router>
       <Routes>
@@ -70,8 +95,8 @@ export default function App() {
                 <Topbar user={user} onLogout={() => setUser(null)} />
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
                   <Routes>
-                    <Route path="/" element={<Dashboard contacts={contacts} />} />
-                    <Route path="/contacts" element={<Contacts contacts={contacts} setContacts={setContacts} />} />
+                    <Route path="/" element={<Dashboard contacts={contacts} user={user} />} />
+                    <Route path="/contacts" element={<Contacts contacts={contacts} setContacts={setContacts} user={user} />} />
                     <Route path="/chatbot" element={<Chatbot />} />
                     <Route path="/favorites" element={<Favorites contacts={contacts} setContacts={setContacts} />} />
                     <Route path="/admin" element={user.role === 'Admin' ? <AdminPanel /> : <Navigate to="/" />} />
@@ -86,4 +111,5 @@ export default function App() {
       </Routes>
     </Router>
   );
+  
 }
