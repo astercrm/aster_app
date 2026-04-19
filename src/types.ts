@@ -40,6 +40,8 @@ export interface User {
   email: string;
   role: 'Admin' | 'User';
   avatar?: string;
+  phone?: string;
+  location?: string;
 }
 
 export interface Notification {

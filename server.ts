@@ -344,15 +344,16 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   app.post('/api/auth/logout', (req, res) => res.json({ success: true }));
 
   app.put('/api/auth/profile', async (req, res) => {
-    const { name, email } = req.body;
+    const { id, name, email, phone, location } = req.body;
+    if (!id) return res.status(400).json({ message: 'User ID is required.' });
     const { data, error } = await supabase
       .from('app_users')
-      .update({ name, email })
-      .eq('email', email)
+      .update({ name, email, phone, location })
+      .eq('id', id)
       .select()
       .single();
     if (error) return res.status(400).json({ message: error.message });
-    res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
+    res.json({ id: data.id, name: data.name, email: data.email, role: data.role, phone: data.phone, location: data.location });
   });
 
   // ── CONTACTS ──────────────────────────────────────────────────────────────

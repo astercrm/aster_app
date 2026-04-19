@@ -11,7 +11,7 @@ import {
   ResponsiveContainer, 
 } from 'recharts';
 import { Contact } from '../types';
-import { useMemo, useEffect, useState, useRef } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { api } from '../services/api';
 
 interface DashboardProps {
@@ -226,7 +226,6 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
   const [dashboardStats, setDashboardStats] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const hasFetched = useRef(false);
 
   const localStats = useMemo(() => {
     const total = contacts.length;
@@ -267,10 +266,9 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
     return Object.entries(counts).map(([name, contacts]) => ({ name, contacts }));
   }, [contacts]);
 
-  // Show local data immediately, then fetch from API in background
+  // Show local data immediately — derived directly from contacts prop, no API needed
   useEffect(() => {
-    if (contacts.length > 0 && !hasFetched.current) {
-      // Instantly show local data first — no waiting
+    if (contacts.length > 0 || !isLoading) {
       setDashboardStats(localStats);
       setChartData(localChartData);
       const sorted = [...contacts]
@@ -281,32 +279,7 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
     }
   }, [contacts, localStats, localChartData]);
 
-  // Fetch API data in background without blocking UI
-  useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-
-    const fetchInBackground = async () => {
-      try {
-        const [recent, stats] = await Promise.all([
-          api.getRecentContacts(),
-          api.getStats()
-        ]);
-        if (recent.length > 0) setRecentContacts(recent);
-        if (stats?.summary) {
-          setDashboardStats(stats.summary);
-          setChartData(stats.chartData);
-        }
-      } catch (error) {
-        // Silently fail — local data already showing
-        console.error('Background fetch failed:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchInBackground();
-  }, []);
+  // No background API fetch — avoids the flicker of stats changing after load
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">

@@ -26,7 +26,7 @@ export const api = {
   signup: (userData: any) => request<User>('/auth/signup', { method: 'POST', body: JSON.stringify(userData) }),
   me: () => request<User>('/auth/me'),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
-  updateProfile: (profile: any) => request<User>('/auth/profile', { method: 'PUT', body: JSON.stringify(profile) }),
+  updateProfile: (id: string, profile: any) => request<User>(`/auth/profile/${id}`, { method: 'PUT', body: JSON.stringify(profile) }),
   forgotPassword: (email: string) => request<{ message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
 
   // Contacts
@@ -66,4 +66,3 @@ getOnlineUsers: () => request<any[]>('/activity/online'),
 getActivitySummary: () => request<any[]>('/activity/summary'),
 
 };
-

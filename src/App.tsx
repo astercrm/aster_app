@@ -7,7 +7,7 @@ import Favorites from './pages/Favorites';
 import AdminPanel from './pages/AdminPanel';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
+//import Signup from './pages/Signup';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { Contact } from './types';
@@ -83,7 +83,7 @@ useEffect(() => {
         {!user ? (
           <>
             <Route path="/login" element={<Login onLogin={setUser} onToggleView={() => {}} />} />
-            <Route path="/signup" element={<Signup onSignup={setUser} onToggleView={() => {}} />} />
+            {/* <Route path="/signup" element={<Signup onSignup={setUser} onToggleView={() => {}} />} /> */}
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="*" element={<Navigate to="/login" />} />
           </>

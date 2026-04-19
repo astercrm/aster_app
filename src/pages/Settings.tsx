@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Bell, Shield, Globe, Moon, Sun, Save } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
@@ -17,14 +17,26 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: '+91 98765 43210',
-    location: 'Chennai, India'
+    phone: user?.phone || '',
+    location: user?.location || ''
   });
 
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+        location: user.location || ''
+      });
+    }
+  }, [user]);
+
   const handleSaveProfile = async () => {
+    if (!user) return;
     setIsSaving(true);
     try {
-      const updatedUser = await api.updateProfile(formData);
+      const updatedUser = await api.updateProfile(user.id, formData);
       setUser(updatedUser);
       alert('Profile updated successfully');
     } catch (error) {
