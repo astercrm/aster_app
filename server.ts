@@ -343,8 +343,9 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
 
   app.post('/api/auth/logout', (req, res) => res.json({ success: true }));
 
-  app.put('/api/auth/profile', async (req, res) => {
-    const { id, name, email, phone, location } = req.body;
+  app.put('/api/auth/profile/:id', async (req, res) => {
+    const id = req.params.id || req.body.id;
+    const { name, email, phone, location } = req.body;
     if (!id) return res.status(400).json({ message: 'User ID is required.' });
     const { data, error } = await supabase
       .from('app_users')

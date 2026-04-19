@@ -77,6 +77,45 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [isUploadingScreenshot, setIsUploadingScreenshot] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
+  const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'staff' | 'branches' | 'paymentStatuses'>('serviceTypes');
+  const [newDropdownItem, setNewDropdownItem] = useState('');
+
+  // Editable dropdown lists — persisted in localStorage
+  const loadList = (key: string, fallback: string[]) => {
+    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
+  };
+  const [customServiceTypes, setCustomServiceTypes] = useState<string[]>(() => loadList('aster_serviceTypes', serviceTypes));
+  const [customStatuses, setCustomStatuses] = useState<string[]>(() => loadList('aster_statuses', statuses));
+  const [customStaff, setCustomStaff] = useState<string[]>(() => loadList('aster_staff', staff));
+  const [customBranches, setCustomBranches] = useState<string[]>(() => loadList('aster_branches', branches));
+  const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(() => loadList('aster_paymentStatuses', paymentStatuses));
+
+  const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch {} };
+
+  const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; storageKey: string }> = {
+    serviceTypes: { label: 'Service Types (Customer Requirement)', list: customServiceTypes, setList: (l) => { setCustomServiceTypes(l); saveList('aster_serviceTypes', l); }, storageKey: 'aster_serviceTypes' },
+    statuses: { label: 'Current Status Options', list: customStatuses, setList: (l) => { setCustomStatuses(l); saveList('aster_statuses', l); }, storageKey: 'aster_statuses' },
+    staff: { label: 'Staff Names', list: customStaff, setList: (l) => { setCustomStaff(l); saveList('aster_staff', l); }, storageKey: 'aster_staff' },
+    branches: { label: 'Branches / Locations', list: customBranches, setList: (l) => { setCustomBranches(l); saveList('aster_branches', l); }, storageKey: 'aster_branches' },
+    paymentStatuses: { label: 'Payment Status Options', list: customPaymentStatuses, setList: (l) => { setCustomPaymentStatuses(l); saveList('aster_paymentStatuses', l); }, storageKey: 'aster_paymentStatuses' },
+  };
+
+  const handleAddDropdownItem = () => {
+    const trimmed = newDropdownItem.trim();
+    if (!trimmed) return;
+    const cfg = dropdownConfig[dropdownManagerTab];
+    if (cfg.list.includes(trimmed)) { triggerToast('Item already exists'); return; }
+    cfg.setList([...cfg.list, trimmed]);
+    setNewDropdownItem('');
+    triggerToast('Item added');
+  };
+
+  const handleRemoveDropdownItem = (item: string) => {
+    const cfg = dropdownConfig[dropdownManagerTab];
+    cfg.setList(cfg.list.filter(i => i !== item));
+    triggerToast('Item removed');
+  };
 
   const calculateAmounts = (data: Partial<Contact>) => {
     const receiveAmount = parseFloat(data.receiveAmount || '0') || 0;
@@ -601,32 +640,42 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           <p className="text-gray-500 dark:text-slate-400 mt-1">Manage and organize your employee directory.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button 
-            onClick={downloadCurrentContacts}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-          >
-            <Download size={16} /> Download
-          </button>
-          <button 
-            onClick={downloadTemplate}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-          >
-            <Download size={16} /> Template
-          </button>
-          <label className={cn(
-            "flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm",
-            isBulkUploading ? "cursor-wait opacity-70" : "cursor-pointer"
-          )}>
-            {isBulkUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
-            {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
-            <input 
-              type="file" 
-              className="hidden" 
-              accept=".csv,.json,.xlsx,.xls"
-              onChange={handleBulkUpload}
-              disabled={isBulkUploading}
-            />
-          </label>
+          {user?.role === 'Admin' && (
+            <>
+              <button
+                onClick={() => setIsDropdownManagerOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+              >
+                <Filter size={16} /> Manage Dropdowns
+              </button>
+              <button 
+                onClick={downloadCurrentContacts}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+              >
+                <Download size={16} /> Download
+              </button>
+              <button 
+                onClick={downloadTemplate}
+                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
+              >
+                <Download size={16} /> Template
+              </button>
+              <label className={cn(
+                "flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm",
+                isBulkUploading ? "cursor-wait opacity-70" : "cursor-pointer"
+              )}>
+                {isBulkUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  accept=".csv,.json,.xlsx,.xls"
+                  onChange={handleBulkUpload}
+                  disabled={isBulkUploading}
+                />
+              </label>
+            </>
+          )}
           <button 
             onClick={handleAddContact}
             className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
@@ -662,7 +711,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           />
         </div>
         <AnimatePresence>
-          {selectedIds.size > 0 && (
+          {selectedIds.size > 0 && user?.role === 'Admin' && (
             <motion.button
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -678,11 +727,11 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       </div>
 
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{ position: 'relative' }}>
           <table className="w-full text-left min-w-[4000px]">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
-                <th className="px-6 py-4 w-10">
+                <th className="px-6 py-4 w-10 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
                   <input 
                     type="checkbox" 
                     checked={paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))}
@@ -690,16 +739,16 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     className="rounded border-gray-300 text-primary focus:ring-primary" 
                   />
                 </th>
-                <th className="px-6 py-4">CTN</th>
+                <th className="px-6 py-4 sticky left-10 z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CTN</th>
                 <th className="px-6 py-4">ORDER NUMBER</th>
                 <th className="px-6 py-4">ENTRY LEADS</th>
                 <th className="px-6 py-4">DATE</th>
                 <th className="px-6 py-4">TELE CALLING STAFF</th>
                 <th className="px-6 py-4">TECHNICAL STAFF</th>
-                <th className="px-6 py-4">CUSTOMER CONTACTS NUMBER</th>
-                <th className="px-6 py-4">CUSTOMER NAME</th>
+                <th className="px-6 py-4 sticky left-[10rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CUSTOMER CONTACTS NUMBER</th>
+                <th className="px-6 py-4 sticky left-[22rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CUSTOMER NAME</th>
                 <th className="px-6 py-4">CUSTOMER REQURMENT</th>
-                <th className="px-6 py-4">CURRENT STATUS</th>
+                <th className="px-6 py-4 sticky left-[32rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CURRENT STATUS</th>
                 <th className="px-6 py-4">DETAILS & NOTES</th>
                 <th className="px-6 py-4">CLAIM APPLY DATE</th>
                 <th className="px-6 py-4">FOLLOW UP DATE</th>
@@ -720,7 +769,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                 <th className="px-6 py-4">REMARKS</th>
                 <th className="px-6 py-4">TELE TOTAL AMOUNT</th>
                 <th className="px-6 py-4">TECHNICAL TOTAL AMOUNT</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800 shadow-[-2px_0_5px_rgba(0,0,0,0.08)]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -734,7 +783,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                       key={contact.id} 
                       className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group"
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50">
                         <input 
                           type="checkbox" 
                           checked={selectedIds.has(contact.id)}
@@ -742,21 +791,21 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                           className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" 
                         />
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.ctn}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 sticky left-10 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">{contact.ctn}</td>
                       <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-slate-400">{contact.orderNumber}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.entryLeads}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.date}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingStaff}</td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.technicalStaff}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.customerContactNumber}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 sticky left-[10rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">{contact.customerContactNumber}</td>
+                      <td className="px-6 py-4 sticky left-[22rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-gray-900 dark:text-white">{contact.customerName}</span>
                           {contact.isFavorite && <Star size={12} className="fill-amber-400 text-amber-400" />}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.customerRequirement}</td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 sticky left-[32rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
                         <span className={cn(
                           "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
                           contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary" :
@@ -786,7 +835,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingRemarks}</td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.teleTotalAmount}</td>
                       <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.technicalTotalAmount}</td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[-2px_0_5px_rgba(0,0,0,0.06)]">
                         <div className="flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                           <a 
                             href={`tel:${contact.customerContactNumber}`}
@@ -1239,26 +1288,115 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           />
         </div>
       )}
-      {/* Datalists for editable dropdowns */}
+      {/* Datalists for editable dropdowns — now use custom (editable) lists */}
       <datalist id="serviceTypesList">
-        {serviceTypes.map(s => <option key={s} value={s} />)}
+        {customServiceTypes.map(s => <option key={s} value={s} />)}
       </datalist>
       <datalist id="statusesList">
-        {statuses.map(s => <option key={s} value={s} />)}
+        {customStatuses.map(s => <option key={s} value={s} />)}
       </datalist>
       <datalist id="entryLeadsList">
         <option value="New" />
         <option value="Re_Entry" />
       </datalist>
       <datalist id="paymentStatusesList">
-        {paymentStatuses.map(s => <option key={s} value={s} />)}
+        {customPaymentStatuses.map(s => <option key={s} value={s} />)}
       </datalist>
       <datalist id="staffList">
-        {staff.map(s => <option key={s} value={s} />)}
+        {customStaff.map(s => <option key={s} value={s} />)}
       </datalist>
       <datalist id="branchesList">
-        {branches.map(s => <option key={s} value={s} />)}
+        {customBranches.map(s => <option key={s} value={s} />)}
       </datalist>
+
+      {/* Dropdown Manager Modal — Admin only */}
+      <AnimatePresence>
+        {isDropdownManagerOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDropdownManagerOpen(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-slate-800 flex flex-col max-h-[80vh]"
+            >
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Manage Dropdown Options</h2>
+                <button onClick={() => setIsDropdownManagerOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                  <X size={20} className="text-gray-500 dark:text-slate-400" />
+                </button>
+              </div>
+
+              {/* Tab bar */}
+              <div className="flex gap-1 px-4 pt-3 overflow-x-auto shrink-0">
+                {(Object.keys(dropdownConfig) as Array<typeof dropdownManagerTab>).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all",
+                      dropdownManagerTab === tab ? "bg-primary text-white" : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    {dropdownConfig[tab].label.split(' ')[0]}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">{dropdownConfig[dropdownManagerTab].label}</p>
+
+                {/* Add new item */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newDropdownItem}
+                    onChange={e => setNewDropdownItem(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddDropdownItem())}
+                    placeholder="Type new option and press Enter..."
+                    className="flex-1 bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white"
+                  />
+                  <button
+                    onClick={handleAddDropdownItem}
+                    className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-all"
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+
+                {/* List of items */}
+                <div className="space-y-2">
+                  {dropdownConfig[dropdownManagerTab].list.length === 0 && (
+                    <p className="text-sm text-gray-400 dark:text-slate-500 text-center py-4">No options yet. Add one above.</p>
+                  )}
+                  {dropdownConfig[dropdownManagerTab].list.map(item => (
+                    <div key={item} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl group">
+                      <span className="text-sm text-gray-800 dark:text-slate-200">{item}</span>
+                      <button
+                        onClick={() => handleRemoveDropdownItem(item)}
+                        className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
+                        title="Remove"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50">
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Changes are saved automatically and persist across sessions.</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

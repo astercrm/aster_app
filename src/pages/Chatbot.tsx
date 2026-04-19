@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+{/* Chatbot.tsx /import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { Send, Bot, User, Sparkles, Loader2, Phone, MessageSquare } from 'lucide-react';
 import { MOCK_CONTACTS } from '../mockData';
@@ -208,4 +208,9 @@ export default function Chatbot() {
       </form>
     </div>
   );
+}
+*/}
+// Chatbot section removed as requested.
+export default function Chatbot() {
+  return null;
 }

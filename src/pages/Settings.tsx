@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, Bell, Shield, Globe, Moon, Sun, Save } from 'lucide-react';
+import { User, Bell, Shield, Globe, Moon, Sun, Save, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import { User as UserType } from '../types';
@@ -14,6 +15,7 @@ interface SettingsProps {
 export default function Settings({ theme, setTheme, user, setUser }: SettingsProps) {
   const [activeTab, setActiveTab] = useState('profile');
   const [isSaving, setIsSaving] = useState(false);
+  const [showToast, setShowToast] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -37,14 +39,22 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
     setIsSaving(true);
     try {
       const updatedUser = await api.updateProfile(user.id, formData);
-      setUser(updatedUser);
-      alert('Profile updated successfully');
+      const merged = { ...user, ...updatedUser };
+      setUser(merged);
+      // Persist locally so data survives page refresh
+      try { localStorage.setItem('aster_user', JSON.stringify(merged)); } catch {}
+      triggerToast('Profile updated successfully');
     } catch (error) {
       console.error('Failed to update profile:', error);
-      alert('Failed to update profile');
+      triggerToast('Failed to update profile');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const triggerToast = (msg: string) => {
+    setShowToast(msg);
+    setTimeout(() => setShowToast(null), 3000);
   };
 
   const tabs = [
@@ -170,6 +180,21 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
           )}
         </div>
       </div>
+
+      {/* Toast notification */}
+      <AnimatePresence>
+        {showToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10"
+          >
+            <CheckCircle2 size={18} className="text-primary" />
+            <span className="text-sm font-bold tracking-tight">{showToast}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
