@@ -19,8 +19,6 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: user?.phone || '',
-    location: user?.location || ''
   });
 
   useEffect(() => {
@@ -28,8 +26,6 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
       setFormData({
         name: user.name || '',
         email: user.email || '',
-        phone: user.phone || '',
-        location: user.location || ''
       });
     }
   }, [user]);
@@ -114,24 +110,7 @@ export default function Settings({ theme, setTheme, user, setUser }: SettingsPro
                       className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
                     />
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Phone Number</label>
-                    <input 
-                      type="tel" 
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location</label>
-                    <input 
-                      type="text" 
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                    />
-                  </div>
+
                 </div>
               </div>
 

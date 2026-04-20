@@ -639,7 +639,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Contacts</h1>
           <p className="text-gray-500 dark:text-slate-400 mt-1">Manage and organize your employee directory.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 md:flex-wrap md:gap-3 shrink-0">
           {user?.role === 'Admin' && (
             <>
               <button
@@ -726,7 +726,150 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         </AnimatePresence>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+      {/* ── MOBILE CARD VIEW (shown on small screens) ── */}
+      <div className="md:hidden space-y-3">
+        {paginatedContacts.length > 0 ? (
+          <AnimatePresence mode="popLayout">
+            {paginatedContacts.map((contact) => (
+              <motion.div
+                key={contact.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden"
+              >
+                {/* Card header */}
+                <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(contact.id)}
+                      onChange={() => handleToggleSelect(contact.id)}
+                      className="shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-base font-bold text-gray-900 dark:text-white truncate">{contact.customerName}</span>
+                        {contact.isFavorite && <Star size={13} className="fill-amber-400 text-amber-400 shrink-0" />}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-gray-400 dark:text-slate-500">{contact.orderNumber}</span>
+                        {contact.ctn && <span className="text-xs text-gray-400 dark:text-slate-500">· {contact.ctn}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={cn(
+                    "shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                    contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
+                    contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                  )}>
+                    {contact.currentStatus}
+                  </span>
+                </div>
+
+                {/* Key info grid */}
+                <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Phone</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300 font-medium">{contact.customerContactNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Date</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300">{contact.date || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Requirement</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.customerRequirement || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Payment</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300">{contact.paymentStatus || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Tele Staff</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.teleCallingStaff || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Tech Staff</p>
+                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.technicalStaff || '—'}</p>
+                  </div>
+                  {contact.receiveAmount && contact.receiveAmount !== '0' && (
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Received</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">₹{contact.receiveAmount}</p>
+                    </div>
+                  )}
+                  {contact.serviceCharges && contact.serviceCharges !== '0' && (
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Service Charges</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">₹{contact.serviceCharges}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action bar */}
+                <div className="px-3 py-2.5 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <a
+                      href={`tel:${contact.customerContactNumber}`}
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"
+                    >
+                      <Phone size={16} />
+                    </a>
+                    <a
+                      href={`https://wa.me/${contact.customerContactNumber}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-primary border border-gray-100 dark:border-slate-600"
+                    >
+                      <MessageSquare size={16} />
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => handleToggleFavorite(contact.id, e)}
+                      className={cn(
+                        "p-2.5 rounded-xl shadow-sm border transition-colors",
+                        contact.isFavorite
+                          ? "bg-amber-50 dark:bg-amber-900/20 text-amber-400 border-amber-100 dark:border-amber-800"
+                          : "bg-white dark:bg-slate-700 text-gray-400 border-gray-100 dark:border-slate-600"
+                      )}
+                    >
+                      <Star size={16} className={contact.isFavorite ? "fill-current" : ""} />
+                    </button>
+                    <button
+                      onClick={() => handleViewContact(contact)}
+                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"
+                    >
+                      <Eye size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleEditContact(contact)}
+                      className="p-2.5 rounded-xl bg-primary text-white shadow-sm shadow-primary/20"
+                    >
+                      <Edit2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-12 flex flex-col items-center justify-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-400">
+              <Users size={32} />
+            </div>
+            <div className="text-center">
+              <p className="text-lg font-bold text-gray-900 dark:text-white">No contacts found</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Your contact list is currently empty.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── DESKTOP TABLE VIEW (hidden on small screens) ── */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto" style={{ position: 'relative' }}>
           <table className="w-full text-left min-w-[4000px]">
             <thead>
@@ -907,49 +1050,43 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           </table>
         </div>
 
-        <div className="p-6 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
             Showing <span className="text-gray-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="text-gray-900 dark:text-white">{Math.min(currentPage * ITEMS_PER_PAGE, filteredContacts.length)}</span> of <span className="text-gray-900 dark:text-white">{filteredContacts.length}</span> contacts
           </p>
           <div className="flex items-center gap-2">
-            <button 
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => p - 1)}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"
-            >
-              <ChevronLeft size={18} />
-            </button>
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronLeft size={18} /></button>
             <div className="flex items-center gap-1">
-              {pageNumbers.map((page, index) => {
-                if (typeof page === 'string') {
-                  return <span key={`ellipsis-${index}`} className="w-9 h-9 flex items-center justify-center text-gray-400">...</span>;
-                }
-                return (
-                  <button 
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={cn(
-                      "w-9 h-9 rounded-lg text-sm font-bold transition-all",
-                      currentPage === page 
-                      ? "bg-primary text-white shadow-md shadow-primary/20" 
-                      : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400"
-                    )}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
+              {pageNumbers.map((page, index) => typeof page === 'string' ? (
+                <span key={`e-${index}`} className="w-9 h-9 flex items-center justify-center text-gray-400">...</span>
+              ) : (
+                <button key={page} onClick={() => setCurrentPage(page)} className={cn("w-9 h-9 rounded-lg text-sm font-bold transition-all", currentPage === page ? "bg-primary text-white shadow-md shadow-primary/20" : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400")}>{page}</button>
+              ))}
             </div>
-            <button 
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(p => p + 1)}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"
-            >
-              <ChevronRight size={18} />
-            </button>
+            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronRight size={18} /></button>
           </div>
         </div>
       </div>
+
+      {/* ── SHARED MOBILE PAGINATION ── */}
+      {filteredContacts.length > ITEMS_PER_PAGE && (
+        <div className="md:hidden bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 flex flex-col items-center gap-3">
+          <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">
+            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length} contacts
+          </p>
+          <div className="flex items-center gap-2">
+            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronLeft size={18} /></button>
+            <div className="flex items-center gap-1.5">
+              {pageNumbers.map((page, index) => typeof page === 'string' ? (
+                <span key={`em-${index}`} className="w-9 h-9 flex items-center justify-center text-gray-400 text-sm">…</span>
+              ) : (
+                <button key={page} onClick={() => setCurrentPage(page)} className={cn("w-9 h-9 rounded-xl text-sm font-bold transition-all", currentPage === page ? "bg-primary text-white shadow-md shadow-primary/20" : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400")}>{page}</button>
+              ))}
+            </div>
+            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronRight size={18} /></button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       <AnimatePresence>
