@@ -195,24 +195,18 @@ async function startServer() {
       details: 'User logged in',
     });
 
-    // ── ATTENDANCE: mark one record per calendar day ──────────────────────────
+    // ── ATTENDANCE: mark one record per calendar day (upsert = safe against races) ──
     const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    const { data: existingAtt } = await supabase
-      .from('attendance')
-      .select('id')
-      .eq('user_id', data.id)
-      .eq('date', todayStr)
-      .maybeSingle();
-
-    if (!existingAtt) {
-      await supabase.from('attendance').insert({
+    await supabase.from('attendance').upsert(
+      {
         user_id: data.id,
         user_name: data.name,
         user_email: data.email,
         date: todayStr,
         login_time: new Date().toISOString(),
-      });
-    }
+      },
+      { onConflict: 'user_id,date', ignoreDuplicates: true }
+    );
 
     res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
@@ -570,7 +564,7 @@ async function startServer() {
     const { from, to, userId } = req.query as Record<string, string>;
     let query = supabase
       .from('attendance')
-      .select('*')
+      .select('id, user_id, user_name, user_email, date, login_time, created_at')
       .order('date', { ascending: false });
 
     if (from) query = query.gte('date', from);
@@ -578,8 +572,16 @@ async function startServer() {
     if (userId) query = query.eq('user_id', userId);
 
     const { data, error } = await query;
-    if (error) return res.status(500).json({ message: error.message });
-    res.json(data || []);
+    if (error) {
+      console.error('Attendance fetch error:', error.message);
+      return res.status(500).json({ message: error.message });
+    }
+    // Normalize date to YYYY-MM-DD string regardless of Supabase return format
+    const normalized = (data || []).map((row: any) => ({
+      ...row,
+      date: typeof row.date === 'string' ? row.date.slice(0, 10) : row.date,
+    }));
+    res.json(normalized);
   });
 
   // Get attendance summary per user (for admin dashboard)
@@ -642,10 +644,13 @@ async function startServer() {
   app.get('/api/activity', async (req, res) => {
     const { data, error } = await supabase
       .from('user_activity')
-      .select('*')
+      .select('id, user_id, user_name, user_email, action, details, created_at')
       .order('created_at', { ascending: false })
       .limit(500);
-    if (error) return res.status(500).json({ message: error.message });
+    if (error) {
+      console.error('Activity fetch error:', error.message);
+      return res.status(500).json({ message: error.message });
+    }
     res.json(data || []);
   });
 

@@ -30,6 +30,7 @@ export default function AdminPanel() {
   // ── Attendance state ─────────────────────────────────────────────────────
   const [attendance, setAttendance] = useState<any[]>([]);
   const [attLoading, setAttLoading] = useState(false);
+  const [attError, setAttError] = useState<string | null>(null);
   const [attMonth, setAttMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -38,6 +39,7 @@ export default function AdminPanel() {
   // ── Activity state ───────────────────────────────────────────────────────
   const [activity, setActivity] = useState<any[]>([]);
   const [actLoading, setActLoading] = useState(false);
+  const [actError, setActError] = useState<string | null>(null);
   const [actPage, setActPage] = useState(1);
   const ACT_PER_PAGE = 25;
 
@@ -59,15 +61,27 @@ export default function AdminPanel() {
 
   const fetchAttendance = async () => {
     setAttLoading(true);
+    setAttError(null);
     try {
       const [year, month] = attMonth.split('-').map(Number);
       const from = `${year}-${String(month).padStart(2, '0')}-01`;
       const lastDay = new Date(year, month, 0).getDate();
       const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-      const data = await fetch(`/api/attendance?from=${from}&to=${to}`).then(r => r.json());
-      setAttendance(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
+      const res = await fetch(`/api/attendance?from=${from}&to=${to}`);
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('Invalid response from server');
+      // Normalize: Supabase may return full ISO timestamps for DATE columns.
+      // Slice to YYYY-MM-DD so Set lookups work correctly.
+      const normalized = data.map((row: any) => ({
+        ...row,
+        date: typeof row.date === 'string' ? row.date.slice(0, 10) : row.date,
+      }));
+      setAttendance(normalized);
+    } catch (e: any) {
+      console.error('Attendance fetch error:', e);
+      setAttError(e.message || 'Failed to load attendance data.');
+      setAttendance([]);
     } finally {
       setAttLoading(false);
     }
@@ -75,11 +89,18 @@ export default function AdminPanel() {
 
   const fetchActivity = async () => {
     setActLoading(true);
+    setActError(null);
     try {
-      const data = await api.getActivity();
-      setActivity(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.error(e);
+      // Use direct fetch — api service may not have getActivity method
+      const res = await fetch('/api/activity');
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw new Error('Invalid response from server');
+      setActivity(data);
+    } catch (e: any) {
+      console.error('Activity fetch error:', e);
+      setActError(e.message || 'Failed to load activity log.');
+      setActivity([]);
     } finally {
       setActLoading(false);
     }
@@ -168,7 +189,9 @@ export default function AdminPanel() {
       if (!map[row.user_id]) {
         map[row.user_id] = { userId: row.user_id, userName: row.user_name, userEmail: row.user_email, dates: new Set() };
       }
-      map[row.user_id].dates.add(row.date);
+      // Always store as YYYY-MM-DD (slice in case Supabase returns ISO timestamp)
+      const dateKey = typeof row.date === 'string' ? row.date.slice(0, 10) : String(row.date);
+      map[row.user_id].dates.add(dateKey);
     });
     return Object.values(map);
   }, [attendance]);
@@ -407,7 +430,23 @@ export default function AdminPanel() {
           </div>
 
           {attLoading ? (
-            <div className="text-center py-12 text-gray-400 text-sm">Loading attendance...</div>
+            <div className="flex items-center justify-center py-16 gap-3 text-gray-400 text-sm">
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+              Loading attendance...
+            </div>
+          ) : attError ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+                <XCircle size={24} className="text-red-400" />
+              </div>
+              <p className="text-sm font-bold text-red-500">{attError}</p>
+              <button onClick={fetchAttendance} className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 transition-all">
+                Retry
+              </button>
+            </div>
           ) : (
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
               <div className="overflow-x-auto">
@@ -462,10 +501,36 @@ export default function AdminPanel() {
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
               <h3 className="font-bold text-gray-900 dark:text-white">User Activity Log</h3>
-              <span className="text-xs text-gray-400 dark:text-slate-500">{activity.length} records</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400 dark:text-slate-500">{activity.length} records</span>
+                <button
+                  onClick={fetchActivity}
+                  disabled={actLoading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <TrendingUp size={13} className={actLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
             </div>
             {actLoading ? (
-              <div className="py-12 text-center text-gray-400 text-sm">Loading activity...</div>
+              <div className="flex items-center justify-center py-16 gap-3 text-gray-400 text-sm">
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                </svg>
+                Loading activity log...
+              </div>
+            ) : actError ? (
+              <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+                  <XCircle size={24} className="text-red-400" />
+                </div>
+                <p className="text-sm font-bold text-red-500">{actError}</p>
+                <button onClick={fetchActivity} className="px-4 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:bg-primary/90 transition-all">
+                  Retry
+                </button>
+              </div>
             ) : (
               <>
                 <div className="overflow-x-auto">
