@@ -113,42 +113,40 @@ async function startServer() {
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   });
 
- app.post('/api/upload', upload.single('file'), async (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded.' });
-  }
-  const file = req.file;
+  app.post('/api/upload', upload.single('file'), async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+    const file = req.file;
 
-  // ✅ Compress image before uploading
-  let uploadBuffer = file.buffer;
-  let uploadMime = file.mimetype;
-  try {
-    uploadBuffer = await sharp(file.buffer)
-      .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 70 })
-      .toBuffer();
-    uploadMime = 'image/jpeg';
-  } catch (e) {
-    // If compression fails use original
-    uploadBuffer = file.buffer;
-    uploadMime = file.mimetype;
-  }
+    let uploadBuffer = file.buffer;
+    let uploadMime = file.mimetype;
+    try {
+      uploadBuffer = await sharp(file.buffer)
+        .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 70 })
+        .toBuffer();
+      uploadMime = 'image/jpeg';
+    } catch (e) {
+      uploadBuffer = file.buffer;
+      uploadMime = file.mimetype;
+    }
 
-  const fileName = `${Date.now()}-${file.originalname.replace(/\s/g, '-')}.jpg`;
+    const fileName = `${Date.now()}-${file.originalname.replace(/\s/g, '-')}.jpg`;
 
-  const { error } = await supabase.storage
-    .from('screenshots')
-    .upload(fileName, uploadBuffer, { contentType: uploadMime });
+    const { error } = await supabase.storage
+      .from('screenshots')
+      .upload(fileName, uploadBuffer, { contentType: uploadMime });
 
-  if (error) {
-    console.warn(`Storage error: ${error.message}. Falling back to base64.`);
-    const base64 = uploadBuffer.toString('base64');
-    return res.json({ url: `data:${uploadMime};base64,${base64}` });
-  }
+    if (error) {
+      console.warn(`Storage error: ${error.message}. Falling back to base64.`);
+      const base64 = uploadBuffer.toString('base64');
+      return res.json({ url: `data:${uploadMime};base64,${base64}` });
+    }
 
-  const { data } = supabase.storage.from('screenshots').getPublicUrl(fileName);
-  res.json({ url: data.publicUrl });
-});
+    const { data } = supabase.storage.from('screenshots').getPublicUrl(fileName);
+    res.json({ url: data.publicUrl });
+  });
 
   // ── AUTH ──────────────────────────────────────────────────────────────────
 
@@ -170,18 +168,12 @@ async function startServer() {
     let passwordIsValid = false;
 
     if (!data.password) {
-      // No password stored at all — allow login and hash it now
       passwordIsValid = true;
       const hashed = await bcrypt.hash(password, saltRounds);
       await supabase.from('app_users').update({ password: hashed }).eq('id', data.id);
-
     } else if (isBcryptHash(data.password)) {
-      // Password is already hashed — compare normally
       passwordIsValid = await bcrypt.compare(password, data.password);
-
     } else {
-      // Password is stored as plain text (old accounts) — compare directly
-      // then upgrade it to a hash automatically
       passwordIsValid = (password === data.password);
       if (passwordIsValid) {
         const hashed = await bcrypt.hash(password, saltRounds);
@@ -193,16 +185,36 @@ async function startServer() {
     if (!passwordIsValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-// ✅ Add this before res.json at end of login handler
-await supabase.from('user_activity').insert({
-  user_id: data.id,
-  user_name: data.name,
-  user_email: data.email,
-  action: 'login',
-  details: 'User logged in',
-});
 
-res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
+    // ── LOG LOGIN ACTIVITY ────────────────────────────────────────────────────
+    await supabase.from('user_activity').insert({
+      user_id: data.id,
+      user_name: data.name,
+      user_email: data.email,
+      action: 'login',
+      details: 'User logged in',
+    });
+
+    // ── ATTENDANCE: mark one record per calendar day ──────────────────────────
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const { data: existingAtt } = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('user_id', data.id)
+      .eq('date', todayStr)
+      .maybeSingle();
+
+    if (!existingAtt) {
+      await supabase.from('attendance').insert({
+        user_id: data.id,
+        user_name: data.name,
+        user_email: data.email,
+        date: todayStr,
+        login_time: new Date().toISOString(),
+      });
+    }
+
+    res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
 
   app.post('/api/auth/signup', async (req, res) => {
@@ -232,111 +244,103 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
 
   app.post('/api/auth/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: 'Email is required.' });
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required.' });
 
-  const cleanEmail = (email || '').toLowerCase().trim();
+    const cleanEmail = (email || '').toLowerCase().trim();
 
-  const { data: user } = await supabase
-    .from('app_users')
-    .select('id, name, email')
-    .eq('email', cleanEmail)
-    .single();
+    const { data: user } = await supabase
+      .from('app_users')
+      .select('id, name, email')
+      .eq('email', cleanEmail)
+      .single();
 
-  if (!user) {
-    return res.json({ message: `If ${email} is registered, a reset link has been sent.` });
-  }
+    if (!user) {
+      return res.json({ message: `If ${email} is registered, a reset link has been sent.` });
+    }
 
-  // ✅ FIX Bug 2: Use crypto for a URL-safe token (no special chars that break URLs)
-  const { randomBytes } = await import('crypto');
-  const token = randomBytes(32).toString('hex'); // purely hex — safe in URLs
+    const { randomBytes } = await import('crypto');
+    const token = randomBytes(32).toString('hex');
 
-  // ✅ FIX Bug 1: Check that the token actually saved to DB before sending email
-  const { error: updateError } = await supabase
-    .from('app_users')
-    .update({ reset_token: token })
-    .eq('id', user.id);
+    const { error: updateError } = await supabase
+      .from('app_users')
+      .update({ reset_token: token })
+      .eq('id', user.id);
 
-  if (updateError) {
-    console.error('Failed to save reset token:', updateError.message);
-    console.error('👉 Make sure the "reset_token" column exists in your app_users table!');
-    console.error('Run this SQL in Supabase: ALTER TABLE app_users ADD COLUMN IF NOT EXISTS reset_token TEXT;');
-    return res.status(500).json({ message: 'Failed to generate reset link. Contact admin.' });
-  }
+    if (updateError) {
+      console.error('Failed to save reset token:', updateError.message);
+      return res.status(500).json({ message: 'Failed to generate reset link. Contact admin.' });
+    }
 
-  // ✅ FIX Bug 2: encodeURIComponent ensures token survives the URL safely
-  const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(cleanEmail)}`;
+    const resetLink = `${process.env.APP_URL || 'http://localhost:3000'}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(cleanEmail)}`;
 
-  try {
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
+    try {
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      });
 
-    await transporter.sendMail({
-      from: `"ASTER Online Service" <${process.env.GMAIL_USER}>`,
-      to: cleanEmail,
-      subject: 'Reset Your ASTER Password',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 16px;">
-          <h2 style="color: #051733;">Reset Your Password</h2>
-          <p>Hi ${user.name},</p>
-          <p>You requested a password reset for your ASTER account.</p>
-          <p>Click the button below to reset your password.</p>
-          <a href="${resetLink}" style="display:inline-block; margin: 16px 0; padding: 12px 28px; background: #051733; color: white; border-radius: 10px; text-decoration: none; font-weight: bold;">
-            Reset Password
-          </a>
-          <p style="color: #6b7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
-        </div>
-      `,
-    });
+      await transporter.sendMail({
+        from: `"ASTER Online Service" <${process.env.GMAIL_USER}>`,
+        to: cleanEmail,
+        subject: 'Reset Your ASTER Password',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 480px; margin: auto; padding: 32px; border: 1px solid #e5e7eb; border-radius: 16px;">
+            <h2 style="color: #051733;">Reset Your Password</h2>
+            <p>Hi ${user.name},</p>
+            <p>You requested a password reset for your ASTER account.</p>
+            <a href="${resetLink}" style="display:inline-block; margin: 16px 0; padding: 12px 28px; background: #051733; color: white; border-radius: 10px; text-decoration: none; font-weight: bold;">
+              Reset Password
+            </a>
+            <p style="color: #6b7280; font-size: 12px;">If you didn't request this, ignore this email.</p>
+          </div>
+        `,
+      });
 
-    res.json({ message: `A password reset link has been sent to ${email}` });
-  } catch (err: any) {
-    console.error('Email send error:', err.message);
-    res.status(500).json({ message: 'Failed to send email. Check GMAIL settings in .env.local' });
-  }
-});
+      res.json({ message: `A password reset link has been sent to ${email}` });
+    } catch (err: any) {
+      console.error('Email send error:', err.message);
+      res.status(500).json({ message: 'Failed to send email. Check GMAIL settings in .env.local' });
+    }
+  });
+
   app.post('/api/auth/reset-password', async (req, res) => {
-  const { token, email, password } = req.body;
-  if (!token || !email || !password) {
-    return res.status(400).json({ message: 'Invalid request.' });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters.' });
-  }
+    const { token, email, password } = req.body;
+    if (!token || !email || !password) {
+      return res.status(400).json({ message: 'Invalid request.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    }
 
-  const cleanEmail = (email || '').toLowerCase().trim();
+    const cleanEmail = (email || '').toLowerCase().trim();
 
-  // ✅ FIX: Also select name so we can log it; error check is explicit
-  const { data: user, error } = await supabase
-    .from('app_users')
-    .select('id, reset_token')
-    .eq('email', cleanEmail)
-    .single();
+    const { data: user, error } = await supabase
+      .from('app_users')
+      .select('id, reset_token')
+      .eq('email', cleanEmail)
+      .single();
 
-  if (error) {
-    console.error('DB error during reset:', error.message);
-    return res.status(400).json({ message: 'Invalid or expired reset link.' });
-  }
+    if (error) {
+      return res.status(400).json({ message: 'Invalid or expired reset link.' });
+    }
 
-  // ✅ FIX: Trim both sides in case whitespace crept in
-  if (!user || (user.reset_token || '').trim() !== (token || '').trim()) {
-    console.error(`Token mismatch for ${cleanEmail}. DB: "${user?.reset_token}" | Received: "${token}"`);
-    return res.status(400).json({ message: 'Invalid or expired reset link.' });
-  }
+    if (!user || (user.reset_token || '').trim() !== (token || '').trim()) {
+      return res.status(400).json({ message: 'Invalid or expired reset link.' });
+    }
 
-  const hashed = await bcrypt.hash(password, saltRounds);
-  await supabase
-    .from('app_users')
-    .update({ password: hashed, reset_token: null })
-    .eq('id', user.id);
+    const hashed = await bcrypt.hash(password, saltRounds);
+    await supabase
+      .from('app_users')
+      .update({ password: hashed, reset_token: null })
+      .eq('id', user.id);
 
-  res.json({ message: 'Password reset successfully.' });
-});
+    res.json({ message: 'Password reset successfully.' });
+  });
+
   app.get('/api/auth/me', (req, res) => {
     res.status(401).json({ message: 'Unauthorized' });
   });
@@ -360,41 +364,41 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   // ── CONTACTS ──────────────────────────────────────────────────────────────
 
   app.get('/api/contacts/stats', async (req, res) => {
-  // ✅ Only fetch what we need — not all columns
-  const { data, error } = await supabase
-    .from('contacts')
-    .select('is_favorite, date, current_status');
-  if (error) return res.status(500).json({ message: error.message });
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('is_favorite, date, current_status');
+    if (error) return res.status(500).json({ message: error.message });
 
-  const total = data.length;
-  const favorites = data.filter((c: any) => c.is_favorite).length;
-  const today = new Date();
-  const todayStr = today.toLocaleDateString('en-GB', {
-    day: '2-digit', month: 'short', year: 'numeric'
-  }).replace(/ /g, '-');
-  const activeToday = data.filter((c: any) => c.date === todayStr).length;
+    const total = data.length;
+    const favorites = data.filter((c: any) => c.is_favorite).length;
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    }).replace(/ /g, '-');
+    const activeToday = data.filter((c: any) => c.date === todayStr).length;
 
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const chartCounts: Record<string, number> = {};
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    chartCounts[months[d.getMonth()]] = 0;
-  }
-  data.forEach((c: any) => {
-    if (!c.date) return;
-    const [, monthStr] = c.date.split('-');
-    if (chartCounts[monthStr] !== undefined) chartCounts[monthStr]++;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const chartCounts: Record<string, number> = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      chartCounts[months[d.getMonth()]] = 0;
+    }
+    data.forEach((c: any) => {
+      if (!c.date) return;
+      const [, monthStr] = c.date.split('-');
+      if (chartCounts[monthStr] !== undefined) chartCounts[monthStr]++;
+    });
+
+    res.json({
+      summary: [
+        { label: 'Total Contacts', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
+        { label: 'Favorites', value: favorites.toLocaleString(), icon: 'Star', color: 'bg-amber-500', trend: '+2%' },
+        { label: 'Active Today', value: activeToday.toLocaleString(), icon: 'TrendingUp', color: 'bg-violet-500', trend: '+18%' },
+      ],
+      chartData: Object.entries(chartCounts).map(([name, contacts]) => ({ name, contacts })),
+    });
   });
 
-  res.json({
-    summary: [
-      { label: 'Total Contacts', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
-      { label: 'Favorites', value: favorites.toLocaleString(), icon: 'Star', color: 'bg-amber-500', trend: '+2%' },
-      { label: 'Active Today', value: activeToday.toLocaleString(), icon: 'TrendingUp', color: 'bg-violet-500', trend: '+18%' },
-    ],
-    chartData: Object.entries(chartCounts).map(([name, contacts]) => ({ name, contacts })),
-  });
-});
   app.get('/api/contacts/recent', async (req, res) => {
     const { data, error } = await supabase
       .from('contacts')
@@ -429,10 +433,47 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
     res.json({ success: true });
   });
 
+  // ── CREATE CONTACT with duplicate CTN check ───────────────────────────────
   app.post('/api/contacts', async (req, res) => {
+    const contact = req.body;
+
+    // Duplicate CTN check
+    if (contact.ctn && contact.ctn.trim() !== '') {
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id, ctn, customer_name')
+        .eq('ctn', contact.ctn.trim())
+        .maybeSingle();
+
+      if (existing) {
+        return res.status(409).json({
+          message: `Duplicate CTN: "${contact.ctn}" already exists for customer "${existing.customer_name}".`,
+          duplicate: true,
+          existingId: existing.id,
+        });
+      }
+    }
+
+    // Also check by customer contact number + customer name combo
+    if (contact.customerContactNumber && contact.customerContactNumber.trim() !== '') {
+      const { data: existingByPhone } = await supabase
+        .from('contacts')
+        .select('id, customer_name, customer_contact_number')
+        .eq('customer_contact_number', contact.customerContactNumber.trim())
+        .maybeSingle();
+
+      if (existingByPhone) {
+        return res.status(409).json({
+          message: `Duplicate contact: Phone "${contact.customerContactNumber}" already exists for "${existingByPhone.customer_name}".`,
+          duplicate: true,
+          existingId: existingByPhone.id,
+        });
+      }
+    }
+
     const { data, error } = await supabase
       .from('contacts')
-      .insert(toDB(req.body))
+      .insert(toDB(contact))
       .select()
       .single();
     if (error) return res.status(500).json({ message: error.message });
@@ -472,7 +513,7 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
 
   // ── ADMIN ─────────────────────────────────────────────────────────────────
 
- app.get('/api/admin/users', async (req, res) => {
+  app.get('/api/admin/users', async (req, res) => {
     const { data, error } = await supabase.from('app_users').select('id, name, email, role, status, created_at');
     if (error) return res.status(500).json({ message: error.message });
     const users = (data || []).map((u: any) => ({ ...u, status: u.status || 'Active' }));
@@ -521,90 +562,149 @@ res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
     if (error) return res.status(500).json({ message: error.message });
     res.json({ success: true });
   });
+
+  // ── ATTENDANCE ─────────────────────────────────────────────────────────────
+
+  // Get all attendance (admin only)
+  app.get('/api/attendance', async (req, res) => {
+    const { from, to, userId } = req.query as Record<string, string>;
+    let query = supabase
+      .from('attendance')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (from) query = query.gte('date', from);
+    if (to) query = query.lte('date', to);
+    if (userId) query = query.eq('user_id', userId);
+
+    const { data, error } = await query;
+    if (error) return res.status(500).json({ message: error.message });
+    res.json(data || []);
+  });
+
+  // Get attendance summary per user (for admin dashboard)
+  app.get('/api/attendance/summary', async (req, res) => {
+    const { month, year } = req.query as Record<string, string>;
+    const now = new Date();
+    const targetYear = parseInt(year || String(now.getFullYear()));
+    const targetMonth = parseInt(month || String(now.getMonth() + 1));
+
+    const from = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
+    const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+    const to = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .gte('date', from)
+      .lte('date', to)
+      .order('date', { ascending: true });
+
+    if (error) return res.status(500).json({ message: error.message });
+
+    // Group by user
+    const summary: Record<string, any> = {};
+    (data || []).forEach((row: any) => {
+      if (!summary[row.user_id]) {
+        summary[row.user_id] = {
+          userId: row.user_id,
+          userName: row.user_name,
+          userEmail: row.user_email,
+          presentDays: 0,
+          dates: [],
+        };
+      }
+      summary[row.user_id].presentDays++;
+      summary[row.user_id].dates.push(row.date);
+    });
+
+    res.json(Object.values(summary));
+  });
+
   // ── ACTIVITY TRACKING ────────────────────────────────────────────────────
 
-// Log activity
-app.post('/api/activity', async (req, res) => {
-  const { userId, userName, userEmail, action, details } = req.body;
-  if (!userId || !action) return res.status(400).json({ message: 'Missing fields' });
-  const { error } = await supabase.from('user_activity').insert({
-    user_id: userId,
-    user_name: userName,
-    user_email: userEmail,
-    action,
-    details: details || '',
-  });
-  if (error) return res.status(500).json({ message: error.message });
-  res.json({ success: true });
-});
-
-// Get all activity (admin only)
-app.get('/api/activity', async (req, res) => {
-  const { data, error } = await supabase
-    .from('user_activity')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(200);
-  if (error) return res.status(500).json({ message: error.message });
-  res.json(data || []);
-});
-
-// Get online users (logged in last 5 minutes)
-app.get('/api/activity/online', async (req, res) => {
-  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from('user_activity')
-    .select('user_id, user_name, user_email, created_at')
-    .eq('action', 'heartbeat')
-    .gte('created_at', fiveMinAgo);
-  if (error) return res.status(500).json({ message: error.message });
-  // deduplicate by user_id
-  const seen = new Set();
-  const online = (data || []).filter((r: any) => {
-    if (seen.has(r.user_id)) return false;
-    seen.add(r.user_id);
-    return true;
-  });
-  res.json(online);
-});
-
-// Get session summary per user today
-app.get('/api/activity/summary', async (req, res) => {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const { data, error } = await supabase
-    .from('user_activity')
-    .select('*')
-    .gte('created_at', todayStart.toISOString())
-    .order('created_at', { ascending: true });
-  if (error) return res.status(500).json({ message: error.message });
-
-  const users: Record<string, any> = {};
-  (data || []).forEach((row: any) => {
-    if (!users[row.user_id]) {
-      users[row.user_id] = {
-        userId: row.user_id,
-        userName: row.user_name,
-        userEmail: row.user_email,
-        loginTime: null,
-        lastSeen: null,
-        actions: [],
-        contactsCreated: 0,
-        contactsEdited: 0,
-        contactsDeleted: 0,
-      };
-    }
-    const u = users[row.user_id];
-    if (row.action === 'login' && !u.loginTime) u.loginTime = row.created_at;
-    if (row.action !== 'heartbeat') u.actions.push({ action: row.action, details: row.details, time: row.created_at });
-    if (row.action === 'contact_created') u.contactsCreated++;
-    if (row.action === 'contact_updated') u.contactsEdited++;
-    if (row.action === 'contact_deleted') u.contactsDeleted++;
-    u.lastSeen = row.created_at;
+  // Log activity
+  app.post('/api/activity', async (req, res) => {
+    const { userId, userName, userEmail, action, details } = req.body;
+    if (!userId || !action) return res.status(400).json({ message: 'Missing fields' });
+    const { error } = await supabase.from('user_activity').insert({
+      user_id: userId,
+      user_name: userName,
+      user_email: userEmail,
+      action,
+      details: details || '',
+    });
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({ success: true });
   });
 
-  res.json(Object.values(users));
-});
+  // Get all activity (admin only)
+  app.get('/api/activity', async (req, res) => {
+    const { data, error } = await supabase
+      .from('user_activity')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) return res.status(500).json({ message: error.message });
+    res.json(data || []);
+  });
+
+  // Get online users (logged in last 5 minutes)
+  app.get('/api/activity/online', async (req, res) => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('user_activity')
+      .select('user_id, user_name, user_email, created_at')
+      .eq('action', 'heartbeat')
+      .gte('created_at', fiveMinAgo);
+    if (error) return res.status(500).json({ message: error.message });
+    const seen = new Set();
+    const online = (data || []).filter((r: any) => {
+      if (seen.has(r.user_id)) return false;
+      seen.add(r.user_id);
+      return true;
+    });
+    res.json(online);
+  });
+
+  // Get session summary per user today
+  app.get('/api/activity/summary', async (req, res) => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { data, error } = await supabase
+      .from('user_activity')
+      .select('*')
+      .gte('created_at', todayStart.toISOString())
+      .order('created_at', { ascending: true });
+    if (error) return res.status(500).json({ message: error.message });
+
+    const users: Record<string, any> = {};
+    (data || []).forEach((row: any) => {
+      if (!users[row.user_id]) {
+        users[row.user_id] = {
+          userId: row.user_id,
+          userName: row.user_name,
+          userEmail: row.user_email,
+          loginTime: null,
+          lastSeen: null,
+          actions: [],
+          contactsCreated: 0,
+          contactsEdited: 0,
+          contactsDeleted: 0,
+        };
+      }
+      const u = users[row.user_id];
+      if (row.action === 'login' && !u.loginTime) u.loginTime = row.created_at;
+      if (row.action !== 'heartbeat') u.actions.push({ action: row.action, details: row.details, time: row.created_at });
+      if (row.action === 'contact_created') u.contactsCreated++;
+      if (row.action === 'contact_updated') u.contactsEdited++;
+      if (row.action === 'contact_deleted') u.contactsDeleted++;
+      u.lastSeen = row.created_at;
+    });
+
+    res.json(Object.values(users));
+  });
+
   // ── VITE DEV SERVER ───────────────────────────────────────────────────────
 
   if (process.env.NODE_ENV !== 'production') {

@@ -1,34 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import * as Excel from 'exceljs';
 import { 
-  Search, 
-  Filter, 
-  Plus, 
-  MoreVertical, 
-  Phone, 
-  MessageSquare, 
-  Mail, 
-  MapPin, 
-  Building2,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  Upload,
-  Star,
-  Trash2,
-  Edit2,
-  X,
-  CheckCircle2,
-  Users,
-  Loader2,
-  ImageIcon,
-  Eye
+  Search, Filter, Plus, MoreVertical, Phone, MessageSquare, Mail, MapPin, Building2,
+  ChevronLeft, ChevronRight, Download, Upload, Star, Trash2, Edit2, X,
+  CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle
 } from 'lucide-react';
 import { generateMockContacts, serviceTypes, staff, branches, statuses, paymentStatuses } from '../mockData';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Contact } from '../types';
 import { api } from '../services/api';
+import {
+  ROLE_PERMISSIONS, isFieldVisible, isFieldEditable,
+  CTN_TO_REMARKS_FIELDS, CTN_TO_CURRENT_STATUS_FIELDS,
+  SALARY_AMOUNT_FIELDS, TECHNICAL_SHARE_FIELDS, TELECALLING_SHARE_FIELDS,
+  type AppRole,
+} from '../permissions';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -48,9 +35,7 @@ const toInputDate = (dateStr: string | undefined): string => {
     const month = ('0' + (date.getMonth() + 1)).slice(-2);
     const day = ('0' + date.getDate()).slice(-2);
     return `${year}-${month}-${day}`;
-  } catch (e) {
-    return '';
-  }
+  } catch (e) { return ''; }
 };
 
 const fromInputDate = (dateStr: string | undefined): string => {
@@ -60,18 +45,20 @@ const fromInputDate = (dateStr: string | undefined): string => {
     const date = new Date(year, month - 1, day);
     if (isNaN(date.getTime())) return dateStr || '';
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-  } catch (e) {
-    return dateStr || '';
-  }
+  } catch (e) { return dateStr || ''; }
 };
 
 export default function Contacts({ contacts, setContacts, user }: ContactsProps) {
+  const userRole: AppRole = (user?.role as AppRole) || 'User';
+  const perms = ROLE_PERMISSIONS[userRole];
+
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [viewingContact, setViewingContact] = useState<Contact | null>(null);
   const [showToast, setShowToast] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [modalFormData, setModalFormData] = useState<Partial<Contact>>({});
   const [isBulkUploading, setIsBulkUploading] = useState(false);
@@ -80,8 +67,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
   const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'staff' | 'branches' | 'paymentStatuses'>('serviceTypes');
   const [newDropdownItem, setNewDropdownItem] = useState('');
+  // Duplicate warning state
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
-  // Editable dropdown lists — persisted in localStorage
+  // Editable dropdown lists
   const loadList = (key: string, fallback: string[]) => {
     try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
   };
@@ -90,7 +79,6 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [customStaff, setCustomStaff] = useState<string[]>(() => loadList('aster_staff', staff));
   const [customBranches, setCustomBranches] = useState<string[]>(() => loadList('aster_branches', branches));
   const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(() => loadList('aster_paymentStatuses', paymentStatuses));
-
   const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch {} };
 
   const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; storageKey: string }> = {
@@ -105,7 +93,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const trimmed = newDropdownItem.trim();
     if (!trimmed) return;
     const cfg = dropdownConfig[dropdownManagerTab];
-    if (cfg.list.includes(trimmed)) { triggerToast('Item already exists'); return; }
+    if (cfg.list.includes(trimmed)) { triggerToast('Item already exists', 'error'); return; }
     cfg.setList([...cfg.list, trimmed]);
     setNewDropdownItem('');
     triggerToast('Item added');
@@ -121,16 +109,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const receiveAmount = parseFloat(data.receiveAmount || '0') || 0;
     const techShare = parseFloat(data.technicalSharePercent || '0') || 0;
     const teleShare = parseFloat(data.teleCallingSharePercent || '0') || 0;
-
     const techSalary = (receiveAmount * techShare) / 100;
     const teleSalary = (receiveAmount * teleShare) / 100;
-    
-    // Logic based on template: 
-    // teleTotalAmount = receiveAmount + teleCallingSalaryAmount
-    // technicalTotalAmount = teleTotalAmount + technicalSalaryAmount
     const teleTotal = receiveAmount + teleSalary;
     const techTotal = teleTotal + techSalary;
-
     return {
       technicalSalaryAmount: techSalary.toFixed(2),
       teleCallingSalaryAmount: teleSalary.toFixed(2),
@@ -143,17 +125,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const { name, value } = e.target;
     setModalFormData(prev => {
       let next = { ...prev, [name]: value };
-      
-      // Automatically populate shares if they are 0 and receiveAmount is entered
       if (name === 'receiveAmount' && parseFloat(value || '0') > 0) {
-        if (!next.technicalSharePercent || parseFloat(next.technicalSharePercent) === 0) {
-          next.technicalSharePercent = '10';
-        }
-        if (!next.teleCallingSharePercent || parseFloat(next.teleCallingSharePercent) === 0) {
-          next.teleCallingSharePercent = '5';
-        }
+        if (!next.technicalSharePercent || parseFloat(next.technicalSharePercent) === 0) next.technicalSharePercent = '10';
+        if (!next.teleCallingSharePercent || parseFloat(next.teleCallingSharePercent) === 0) next.teleCallingSharePercent = '5';
       }
-
       if (['receiveAmount', 'technicalSharePercent', 'teleCallingSharePercent'].includes(name)) {
         const calculated = calculateAmounts(next);
         return { ...next, ...calculated };
@@ -162,15 +137,11 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     });
   };
 
-  // Helper function to get cell value from a row based on possible header names
   const getCellValue = (colNames: string[], row: any[], headers: string[], occurrence = 1) => {
     let count = 0;
-    const colIndex = headers.findIndex((h: string, idx: number) => {
+    const colIndex = headers.findIndex((h: string) => {
       const isMatch = colNames.some(name => h === name.toLowerCase().trim());
-      if (isMatch) {
-        count++;
-        return count === occurrence;
-      }
+      if (isMatch) { count++; return count === occurrence; }
       return false;
     });
     return colIndex !== -1 ? String(row[colIndex] || '') : '';
@@ -179,17 +150,14 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const filteredContacts = useMemo(() => {
     const query = (searchQuery || '').toLowerCase().trim();
     if (!query) return contacts;
-
-    return contacts.filter(contact => {
-      const matchesSearch = 
-        String(contact.customerName || '').toLowerCase().includes(query) ||
-        String(contact.teleCallingStaff || '').toLowerCase().includes(query) ||
-        String(contact.technicalStaff || '').toLowerCase().includes(query) ||
-        String(contact.customerContactNumber || '').toLowerCase().includes(query) ||
-        String(contact.orderNumber || '').toLowerCase().includes(query) ||
-        String(contact.ctn || '').toLowerCase().includes(query);
-      return matchesSearch;
-    });
+    return contacts.filter(contact =>
+      String(contact.customerName || '').toLowerCase().includes(query) ||
+      String(contact.teleCallingStaff || '').toLowerCase().includes(query) ||
+      String(contact.technicalStaff || '').toLowerCase().includes(query) ||
+      String(contact.customerContactNumber || '').toLowerCase().includes(query) ||
+      String(contact.orderNumber || '').toLowerCase().includes(query) ||
+      String(contact.ctn || '').toLowerCase().includes(query)
+    );
   }, [searchQuery, contacts]);
 
   const totalPages = Math.ceil(filteredContacts.length / ITEMS_PER_PAGE);
@@ -200,6 +168,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
   const handleAddContact = () => {
     setEditingContact(null);
+    setDuplicateWarning(null);
     setModalFormData({
       entryLeads: 'New',
       currentStatus: 'New',
@@ -219,6 +188,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const handleEditContact = (contact: Contact) => {
     setEditingContact(contact);
     setViewingContact(null);
+    setDuplicateWarning(null);
     setModalFormData({
       ...contact,
       date: toInputDate(contact.date),
@@ -234,6 +204,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const handleViewContact = (contact: Contact) => {
     setViewingContact(contact);
     setEditingContact(null);
+    setDuplicateWarning(null);
     setModalFormData({
       ...contact,
       date: toInputDate(contact.date),
@@ -258,30 +229,19 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       triggerToast('Contact deleted successfully');
     } catch (error) {
       console.error('Failed to delete contact:', error);
-      triggerToast('Failed to delete contact');
+      triggerToast('Failed to delete contact', 'error');
     }
   };
 
-  const triggerToast = (msg: string) => {
+  const triggerToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setShowToast(msg);
-    setTimeout(() => setShowToast(null), 3000);
+    setToastType(type);
+    setTimeout(() => setShowToast(null), 4000);
   };
 
   const downloadTemplate = async () => {
-    const headers = [
-      'ORDER NUMBER', 'ENTRY LEADS', 'CTN', 'DATE', 'TELE CALLING STAFF', 'TECHNICAL STAFF', 
-      'CUSTOMER CONTACTS NUMBER', 'CUSTOMER NAME', 'CUSTOMER REQURMENT', 'CURRENT STATUS', 
-      'DETAILS & NOTES', 'CLAIM APPLY DATE', 'FOLLOW UP DATE', 'SERVICES CHARGES', 
-      'PAYMENT STATUS', 'PDF FILE SEND', 'RECIVE AMOUNT', 
-      'TRANSACTION ID', 'RECIVE DATE', 'REMARKS', 'TECHNICAL SHARE (%)', 
-      'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELECALLING SHARE (%)', 
-      'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELE TOTAL AMOUNT', 
-      'TECHNICAL TOTAL AMOUNT'
-    ];
-    const data = [
-      headers,
-      ['ORD-1001', 'New', 'PT 26 0651', '26-Jan-2026', 'Jaya', 'ERD_Kowsalya', '9876543210', 'Ravi Kumar', 'F31 Advance', 'New', '', '26-Jan-2026', '', '500', 'Full Paid', 'Yes', '500', 'T123456', '26-Jan-2026', '', '10', '500', '26-Jan-2026', 'Send Accounts Group', '5', '200', '26-Jan-2026', '', '700', '1200']
-    ];
+    const headers = ['ORDER NUMBER','ENTRY LEADS','CTN','DATE','TELE CALLING STAFF','TECHNICAL STAFF','CUSTOMER CONTACTS NUMBER','CUSTOMER NAME','CUSTOMER REQURMENT','CURRENT STATUS','DETAILS & NOTES','CLAIM APPLY DATE','FOLLOW UP DATE','SERVICES CHARGES','PAYMENT STATUS','PDF FILE SEND','RECIVE AMOUNT','TRANSACTION ID','RECIVE DATE','REMARKS','TECHNICAL SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELECALLING SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELE TOTAL AMOUNT','TECHNICAL TOTAL AMOUNT'];
+    const data = [headers, ['ORD-1001','New','PT 26 0651','26-Jan-2026','Jaya','ERD_Kowsalya','9876543210','Ravi Kumar','F31 Advance','New','','26-Jan-2026','','500','Full Paid','Yes','500','T123456','26-Jan-2026','','10','500','26-Jan-2026','Send Accounts Group','5','200','26-Jan-2026','','700','1200']];
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Template');
     worksheet.addRows(data);
@@ -290,34 +250,12 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'contacts_template.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const downloadCurrentContacts = async () => {
-    const headers = [
-      'ORDER NUMBER', 'ENTRY LEADS', 'CTN', 'DATE', 'TELE CALLING STAFF', 'TECHNICAL STAFF', 
-      'CUSTOMER CONTACTS NUMBER', 'CUSTOMER NAME', 'CUSTOMER REQURMENT', 'CURRENT STATUS', 
-      'DETAILS & NOTES', 'CLAIM APPLY DATE', 'FOLLOW UP DATE', 'SERVICES CHARGES', 
-      'PAYMENT STATUS', 'PDF FILE SEND', 'RECIVE AMOUNT', 
-      'TRANSACTION ID', 'RECIVE DATE', 'REMARKS', 'TECHNICAL SHARE (%)', 
-      'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELECALLING SHARE (%)', 
-      'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELE TOTAL AMOUNT', 
-      'TECHNICAL TOTAL AMOUNT'
-    ];
-    
-    const data = contacts.map(c => [
-      c.orderNumber, c.entryLeads, c.ctn, c.date, c.teleCallingStaff, c.technicalStaff,
-      c.customerContactNumber, c.customerName, c.customerRequirement, c.currentStatus,
-      c.detailsNotes, c.claimApplyDate, c.followUpDate, c.serviceCharges,
-      c.paymentStatus, c.pdfFileSend, c.receiveAmount,
-      c.transactionId, c.receiveDate, c.remarks, c.technicalSharePercent,
-      c.technicalSalaryAmount, c.technicalPaidDate, c.technicalRemarks, c.teleCallingSharePercent,
-      c.teleCallingSalaryAmount, c.teleCallingPaidDate, c.teleCallingRemarks, c.teleTotalAmount,
-      c.technicalTotalAmount
-    ]);
-    
+    const headers = ['ORDER NUMBER','ENTRY LEADS','CTN','DATE','TELE CALLING STAFF','TECHNICAL STAFF','CUSTOMER CONTACTS NUMBER','CUSTOMER NAME','CUSTOMER REQURMENT','CURRENT STATUS','DETAILS & NOTES','CLAIM APPLY DATE','FOLLOW UP DATE','SERVICES CHARGES','PAYMENT STATUS','PDF FILE SEND','RECIVE AMOUNT','TRANSACTION ID','RECIVE DATE','REMARKS','TECHNICAL SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELECALLING SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELE TOTAL AMOUNT','TECHNICAL TOTAL AMOUNT'];
+    const data = contacts.map(c => [c.orderNumber,c.entryLeads,c.ctn,c.date,c.teleCallingStaff,c.technicalStaff,c.customerContactNumber,c.customerName,c.customerRequirement,c.currentStatus,c.detailsNotes,c.claimApplyDate,c.followUpDate,c.serviceCharges,c.paymentStatus,c.pdfFileSend,c.receiveAmount,c.transactionId,c.receiveDate,c.remarks,c.technicalSharePercent,c.technicalSalaryAmount,c.technicalPaidDate,c.technicalRemarks,c.teleCallingSharePercent,c.teleCallingSalaryAmount,c.teleCallingPaidDate,c.teleCallingRemarks,c.teleTotalAmount,c.technicalTotalAmount]);
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Contacts');
     worksheet.addRows([headers, ...data]);
@@ -326,15 +264,12 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'current_contacts.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const handleBulkUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = async (event) => {
       setIsBulkUploading(true);
@@ -347,68 +282,22 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           newContacts = JSON.parse(content);
         } else {
           const workbook = new Excel.Workbook();
-          
-          if (file.name.endsWith('.csv')) {
-            const content = new TextDecoder().decode(buffer);
-            const worksheet = workbook.addWorksheet('CSV');
-            
-            // Custom CSV parser to handle quotes and commas correctly
-            let row: string[] = [];
-            let inQuotes = false;
-            let currentVal = '';
-            for (let i = 0; i < content.length; i++) {
-              const char = content[i];
-              if (char === '"') {
-                if (inQuotes && content[i + 1] === '"') {
-                  currentVal += '"';
-                  i++; // skip escaped quote
-                } else {
-                  inQuotes = !inQuotes;
-                }
-              } else if (char === ',' && !inQuotes) {
-                row.push(currentVal);
-                currentVal = '';
-              } else if ((char === '\n' || char === '\r') && !inQuotes) {
-                if (char === '\r' && content[i + 1] === '\n') i++; // handle \r\n
-                row.push(currentVal);
-                if (row.some(val => val.trim() !== '')) worksheet.addRow(row);
-                row = [];
-                currentVal = '';
-              } else {
-                currentVal += char;
-              }
-            }
-            // Add the last row if file doesn't end with a newline
-            if (currentVal || row.length > 0) {
-              row.push(currentVal);
-              if (row.some(val => val.trim() !== '')) worksheet.addRow(row);
-            }
-          } else {
+          const formatDate = (d: Date) => d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+
+          if (!file.name.endsWith('.csv')) {
             await workbook.xlsx.load(buffer);
           }
-          
-          const worksheet = workbook.worksheets[0];
-          const jsonData: any[][] = [];
-          worksheet.eachRow({ includeEmpty: false }, (row) => {
-            const rowValues = Array.from(row.values as Excel.CellValue[]).slice(1);
-            const formattedRow = rowValues.map(cell => {
-              if (cell === null || cell === undefined) {
-                return '';
-              }
-              const formatDate = (d: Date) => {
-                const day = ('0' + d.getDate()).slice(-2);
-                const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
-                const year = d.getFullYear();
-                return `${day}-${month}-${year}`;
-              };
 
-              if (cell instanceof Date) {
-                return formatDate(cell);
-              }
-              if (typeof cell === 'object' && cell !== null) {
-                if ('richText' in cell && Array.isArray(cell.richText)) {
-                  return cell.richText.map(t => t.text).join('');
-                }
+          const worksheet = workbook.worksheets[0];
+          if (!worksheet) { triggerToast('No worksheet found.', 'error'); setIsBulkUploading(false); return; }
+
+          const jsonData: any[][] = [];
+          worksheet.eachRow((row: any) => {
+            const formattedRow = row.values.slice(1).map((cell: any) => {
+              if (cell === null || cell === undefined) return '';
+              if (cell instanceof Date) return formatDate(cell);
+              if (typeof cell === 'object') {
+                if ('text' in cell) return cell.text || '';
                 if ('result' in cell) {
                   const result = (cell as any).result;
                   if (result instanceof Date) return formatDate(result);
@@ -424,26 +313,12 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
           if (jsonData.length > 0) {
             const headers = jsonData[0].map((h: any) => String(h || '').toLowerCase().trim());
-            
             newContacts = jsonData.slice(1).filter(row => {
-              // Filter out rows that are effectively blank (no customer name or contact number)
               const hasCustomerName = getCellValue(['CUSTOMER NAME', 'NAME'], row, headers).trim() !== '';
               const hasContactNumber = getCellValue(['CUSTOMER CONTACTS NUMBER', 'PHONE NUMBER', 'PHONE', 'CONTACT NO'], row, headers).trim() !== '';
               return hasCustomerName || hasContactNumber;
             }).map((row: any[], index) => {
-              const get = (colNames: string[], occurrence = 1) => {
-                let count = 0;
-                const colIndex = headers.findIndex((h: string, idx: number) => {
-                  const isMatch = colNames.some(name => h === name.toLowerCase().trim());
-                  if (isMatch) {
-                    count++;
-                    return count === occurrence;
-                  }
-                  return false;
-                });
-                return colIndex !== -1 ? String(row[colIndex] || '') : ''; // Use the local 'get' for mapping
-              };
-
+              const get = (colNames: string[], occurrence = 1) => getCellValue(colNames, row, headers, occurrence);
               return {
                 id: `c-bulk-${Date.now()}-${index}`,
                 orderNumber: get(['ORDER NUMBER', 'ORDER NO']),
@@ -487,19 +362,19 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           setContacts(prev => [...createdContacts, ...prev]);
           triggerToast(`Successfully imported ${createdContacts.length} contacts!`);
         } else {
-          triggerToast('No valid contacts found in file.');
+          triggerToast('No valid contacts found in file.', 'error');
         }
       } catch (error) {
         console.error('Error parsing or uploading file:', error);
-        triggerToast('Failed to import contacts. Please check the format and try again.');
+        triggerToast('Failed to import contacts. Please check the format and try again.', 'error');
       } finally {
         setIsBulkUploading(false);
       }
     };
-
     reader.readAsArrayBuffer(file);
     e.target.value = '';
   };
+
   const handleScreenshotUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -509,7 +384,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       setModalFormData(prev => ({ ...prev, screenShotImage: result.url }));
       triggerToast('Screenshot uploaded successfully');
     } catch (error) {
-      triggerToast('Failed to upload screenshot');
+      triggerToast('Failed to upload screenshot', 'error');
     } finally {
       setIsUploadingScreenshot(false);
       e.target.value = '';
@@ -520,6 +395,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setModalFormData(prev => ({ ...prev, screenShotImage: '' }));
     triggerToast('Screenshot removed');
   };
+
   const handleToggleFavorite = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const contact = contacts.find(c => c.id === id);
@@ -536,11 +412,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   };
@@ -548,14 +420,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const handleSelectAll = () => {
     const allOnPageIds = paginatedContacts.map(c => c.id);
     const areAllSelected = allOnPageIds.every(id => selectedIds.has(id));
-
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (areAllSelected) {
-        allOnPageIds.forEach(id => next.delete(id));
-      } else {
-        allOnPageIds.forEach(id => next.add(id));
-      }
+      if (areAllSelected) { allOnPageIds.forEach(id => next.delete(id)); }
+      else { allOnPageIds.forEach(id => next.add(id)); }
       return next;
     });
   };
@@ -569,13 +437,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       triggerToast('Selected contacts deleted successfully');
     } catch (error) {
       console.error('Failed to bulk delete:', error);
-      triggerToast('Failed to delete selected contacts');
+      triggerToast('Failed to delete selected contacts', 'error');
     }
   };
 
   const handleSaveContact = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const contactData: Partial<Contact> = { 
+    setDuplicateWarning(null);
+
+    const contactData: Partial<Contact> = {
       ...modalFormData,
       date: fromInputDate(modalFormData.date),
       claimApplyDate: fromInputDate(modalFormData.claimApplyDate),
@@ -584,12 +454,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       technicalPaidDate: fromInputDate(modalFormData.technicalPaidDate),
       teleCallingPaidDate: fromInputDate(modalFormData.teleCallingPaidDate),
     };
-
-    
-    
-    // Add default fields
     contactData.isFavorite = editingContact?.isFavorite || false;
-    
+
     try {
       if (editingContact) {
         const updatedContact = await api.updateContact(editingContact.id, contactData);
@@ -597,7 +463,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         await api.logActivity({
           userId: user.id, userName: user.name, userEmail: user.email,
           action: 'contact_updated',
-          details: `Updated contact: ${contactData.customerName}`,
+          details: `Updated contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
         });
         triggerToast('Contact updated successfully');
       } else {
@@ -606,94 +472,87 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         await api.logActivity({
           userId: user.id, userName: user.name, userEmail: user.email,
           action: 'contact_created',
-          details: `Created contact: ${contactData.customerName}`,
+          details: `Created contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
         });
         triggerToast('Lead created successfully');
       }
       setIsModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save contact:', error);
-      triggerToast('Failed to save contact');
+      // Handle duplicate detection (409 from server)
+      if (error.message && error.message.includes('Duplicate')) {
+        setDuplicateWarning(error.message);
+      } else {
+        triggerToast(error.message || 'Failed to save contact', 'error');
+      }
     }
   };
 
   const getPageNumbers = () => {
-    if (totalPages <= 7) {
-      return [...Array(totalPages)].map((_, i) => i + 1);
-    }
-    if (currentPage <= 4) {
-      return [1, 2, 3, 4, 5, '...', totalPages];
-    }
-    if (currentPage > totalPages - 4) {
-      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
-    }
+    if (totalPages <= 7) return [...Array(totalPages)].map((_, i) => i + 1);
+    if (currentPage <= 4) return [1, 2, 3, 4, 5, '...', totalPages];
+    if (currentPage > totalPages - 4) return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
     return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
   };
-
   const pageNumbers = getPageNumbers();
+
+  // ── Field visibility helpers ───────────────────────────────────────────────
+  const fv = (fieldName: string) => isFieldVisible(fieldName, userRole);
+  const fe = (fieldName: string) => !viewingContact && isFieldEditable(fieldName, userRole);
+
+  // Input class helper
+  const inputCls = (fieldName: string) => cn(
+    "w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white",
+    !fe(fieldName) && "opacity-70 cursor-not-allowed bg-gray-100 dark:bg-slate-700"
+  );
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Contacts</h1>
-          <p className="text-gray-500 dark:text-slate-400 mt-1">Manage and organize your employee directory.</p>
+          <p className="text-gray-500 dark:text-slate-400 mt-1">Manage and organize your lead directory.</p>
         </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 md:flex-wrap md:gap-3 shrink-0">
-          {user?.role === 'Admin' && (
+          {userRole === 'Admin' && (
             <>
-              <button
-                onClick={() => setIsDropdownManagerOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-              >
+              <button onClick={() => setIsDropdownManagerOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm">
                 <Filter size={16} /> Manage Dropdowns
               </button>
-              <button 
-                onClick={downloadCurrentContacts}
-                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-              >
+              <button onClick={downloadCurrentContacts} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm">
                 <Download size={16} /> Download
               </button>
-              <button 
-                onClick={downloadTemplate}
-                className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm"
-              >
+              <button onClick={downloadTemplate} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm">
                 <Download size={16} /> Template
               </button>
-              <label className={cn(
-                "flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm",
-                isBulkUploading ? "cursor-wait opacity-70" : "cursor-pointer"
-              )}>
+              <label className={cn("flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-800 transition-all shadow-sm", isBulkUploading ? "cursor-wait opacity-70" : "cursor-pointer")}>
                 {isBulkUploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                 {isBulkUploading ? 'Uploading...' : 'Bulk Upload'}
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  accept=".csv,.json,.xlsx,.xls"
-                  onChange={handleBulkUpload}
-                  disabled={isBulkUploading}
-                />
+                <input type="file" className="hidden" accept=".csv,.json,.xlsx,.xls" onChange={handleBulkUpload} disabled={isBulkUploading} />
               </label>
             </>
           )}
-          <button 
-            onClick={handleAddContact}
-            className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
-          >
-            <Plus size={18} /> Lead Contact
-          </button>
+          {perms.canCreateContact && (
+            <button onClick={handleAddContact} className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
+              <Plus size={18} /> Lead Contact
+            </button>
+          )}
         </div>
       </header>
 
       <AnimatePresence>
         {showToast && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10"
+            className={cn("fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border",
+              toastType === 'error'
+                ? "bg-red-900 text-white border-white/10"
+                : "bg-gray-900 text-white border-white/10"
+            )}
           >
-            <CheckCircle2 size={18} className="text-primary" />
+            {toastType === 'error' ? <AlertTriangle size={18} className="text-red-400" /> : <CheckCircle2 size={18} className="text-primary" />}
             <span className="text-sm font-bold tracking-tight">{showToast}</span>
           </motion.div>
         )}
@@ -702,16 +561,16 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input 
-            type="text" 
-            placeholder="Search by name, order no, phone or CTN..." 
+          <input
+            type="text"
+            placeholder="Search by name, order no, phone or CTN..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:focus:bg-slate-800 transition-all outline-none dark:text-white"
           />
         </div>
         <AnimatePresence>
-          {selectedIds.size > 0 && user?.role === 'Admin' && (
+          {selectedIds.size > 0 && userRole === 'Admin' && (
             <motion.button
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -719,684 +578,422 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
               onClick={handleBulkDelete}
               className="flex items-center gap-2 px-4 py-2.5 bg-red-600 rounded-xl text-sm font-bold text-white hover:bg-red-700 transition-all shadow-md shadow-red-500/20 whitespace-nowrap"
             >
-              <Trash2 size={16} />
-              Delete Selected ({selectedIds.size})
+              <Trash2 size={16} /> Delete Selected ({selectedIds.size})
             </motion.button>
           )}
         </AnimatePresence>
       </div>
 
-      {/* ── MOBILE CARD VIEW (shown on small screens) ── */}
-      <div className="md:hidden space-y-3">
-        {paginatedContacts.length > 0 ? (
-          <AnimatePresence mode="popLayout">
-            {paginatedContacts.map((contact) => (
-              <motion.div
-                key={contact.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden"
-              >
-                {/* Card header */}
-                <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(contact.id)}
-                      onChange={() => handleToggleSelect(contact.id)}
-                      className="shrink-0 rounded border-gray-300 text-primary focus:ring-primary"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-base font-bold text-gray-900 dark:text-white truncate">{contact.customerName}</span>
-                        {contact.isFavorite && <Star size={13} className="fill-amber-400 text-amber-400 shrink-0" />}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs text-gray-400 dark:text-slate-500">{contact.orderNumber}</span>
-                        {contact.ctn && <span className="text-xs text-gray-400 dark:text-slate-500">· {contact.ctn}</span>}
-                      </div>
-                    </div>
-                  </div>
-                  <span className={cn(
-                    "shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                    contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
-                    contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                  )}>
-                    {contact.currentStatus}
-                  </span>
-                </div>
-
-                {/* Key info grid */}
-                <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-2">
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Phone</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300 font-medium">{contact.customerContactNumber || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Date</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300">{contact.date || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Requirement</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.customerRequirement || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Payment</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300">{contact.paymentStatus || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Tele Staff</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.teleCallingStaff || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Tech Staff</p>
-                    <p className="text-sm text-gray-700 dark:text-slate-300 truncate">{contact.technicalStaff || '—'}</p>
-                  </div>
-                  {contact.receiveAmount && contact.receiveAmount !== '0' && (
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Received</p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">₹{contact.receiveAmount}</p>
-                    </div>
+      {/* Desktop Table */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left min-w-[3000px]">
+            <thead>
+              <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
+                {userRole === 'Admin' && (
+                  <th className="px-6 py-4 w-10 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
+                    <input type="checkbox" checked={paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))} onChange={handleSelectAll} className="rounded border-gray-300 text-primary focus:ring-primary" />
+                  </th>
+                )}
+                <th className="px-6 py-4 sticky left-10 z-20 bg-gray-50 dark:bg-slate-800">CTN</th>
+                <th className="px-6 py-4">ORDER NUMBER</th>
+                <th className="px-6 py-4">DATE</th>
+                <th className="px-6 py-4">CUSTOMER NAME</th>
+                <th className="px-6 py-4">PHONE</th>
+                <th className="px-6 py-4">REQUIREMENT</th>
+                <th className="px-6 py-4">CURRENT STATUS</th>
+                <th className="px-6 py-4">TELE STAFF</th>
+                <th className="px-6 py-4">TECH STAFF</th>
+                {fv('receiveAmount') && <th className="px-6 py-4">RECEIVED</th>}
+                {fv('paymentStatus') && <th className="px-6 py-4">PAYMENT</th>}
+                {fv('technicalSharePercent') && <th className="px-6 py-4">TECH SHARE</th>}
+                {fv('teleCallingSharePercent') && <th className="px-6 py-4">TELE SHARE</th>}
+                <th className="px-6 py-4 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
+              {paginatedContacts.length === 0 ? (
+                <tr><td colSpan={15} className="px-6 py-16 text-center text-gray-400 text-sm">No contacts found.</td></tr>
+              ) : paginatedContacts.map(contact => (
+                <tr key={contact.id} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors text-sm">
+                  {userRole === 'Admin' && (
+                    <td className="px-6 py-4 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
+                      <input type="checkbox" checked={selectedIds.has(contact.id)} onChange={() => handleToggleSelect(contact.id)} className="rounded border-gray-300 text-primary focus:ring-primary" />
+                    </td>
                   )}
-                  {contact.serviceCharges && contact.serviceCharges !== '0' && (
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">Service Charges</p>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">₹{contact.serviceCharges}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Action bar */}
-                <div className="px-3 py-2.5 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <a
-                      href={`tel:${contact.customerContactNumber}`}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"
-                    >
-                      <Phone size={16} />
-                    </a>
-                    <a
-                      href={`https://wa.me/${contact.customerContactNumber}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-primary border border-gray-100 dark:border-slate-600"
-                    >
-                      <MessageSquare size={16} />
-                    </a>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => handleToggleFavorite(contact.id, e)}
-                      className={cn(
-                        "p-2.5 rounded-xl shadow-sm border transition-colors",
-                        contact.isFavorite
-                          ? "bg-amber-50 dark:bg-amber-900/20 text-amber-400 border-amber-100 dark:border-amber-800"
-                          : "bg-white dark:bg-slate-700 text-gray-400 border-gray-100 dark:border-slate-600"
+                  <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-slate-400 sticky left-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">{contact.ctn || '—'}</td>
+                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
+                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
+                  <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.customerName || '—'}</td>
+                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.customerContactNumber || '—'}</td>
+                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300 max-w-[160px] truncate">{contact.customerRequirement || '—'}</td>
+                  <td className="px-6 py-4">
+                    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
+                      contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
+                      contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                    )}>{contact.currentStatus || '—'}</span>
+                  </td>
+                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
+                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalStaff || '—'}</td>
+                  {fv('receiveAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.receiveAmount ? `₹${contact.receiveAmount}` : '—'}</td>}
+                  {fv('paymentStatus') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.paymentStatus || '—'}</td>}
+                  {fv('technicalSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalSharePercent ? `${contact.technicalSharePercent}%` : '—'}</td>}
+                  {fv('teleCallingSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingSharePercent ? `${contact.teleCallingSharePercent}%` : '—'}</td>}
+                  <td className="px-6 py-4 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {perms.canToggleFavorite && (
+                        <button onClick={(e) => handleToggleFavorite(contact.id, e)} className={cn("p-1.5 rounded-lg transition-colors", contact.isFavorite ? "text-amber-400" : "text-gray-400 hover:text-amber-400")}>
+                          <Star size={15} className={contact.isFavorite ? "fill-current" : ""} />
+                        </button>
                       )}
-                    >
-                      <Star size={16} className={contact.isFavorite ? "fill-current" : ""} />
-                    </button>
-                    <button
-                      onClick={() => handleViewContact(contact)}
-                      className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button
-                      onClick={() => handleEditContact(contact)}
-                      className="p-2.5 rounded-xl bg-primary text-white shadow-sm shadow-primary/20"
-                    >
-                      <Edit2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        ) : (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-12 flex flex-col items-center justify-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-400">
-              <Users size={32} />
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-gray-900 dark:text-white">No contacts found</p>
-              <p className="text-sm text-gray-500 dark:text-slate-400">Your contact list is currently empty.</p>
+                      <button onClick={() => handleViewContact(contact)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500 dark:text-slate-400 transition-colors">
+                        <Eye size={15} />
+                      </button>
+                      {perms.canEditContact && (
+                        <button onClick={() => handleEditContact(contact)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
+                          <Edit2 size={15} />
+                        </button>
+                      )}
+                      {perms.canDeleteContact && (
+                        <button onClick={() => handleDeleteContact(contact.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs text-gray-400 dark:text-slate-500">{filteredContacts.length} contacts</span>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors">
+                <ChevronLeft size={16} className="text-gray-500 dark:text-slate-400" />
+              </button>
+              {pageNumbers.map((n, i) => (
+                <button key={i} onClick={() => typeof n === 'number' && setCurrentPage(n)} disabled={n === '...'}
+                  className={cn("w-8 h-8 rounded-lg text-sm font-bold transition-colors", n === currentPage ? "bg-primary text-white" : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-500 dark:text-slate-400 disabled:cursor-default")}>
+                  {n}
+                </button>
+              ))}
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors">
+                <ChevronRight size={16} className="text-gray-500 dark:text-slate-400" />
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── DESKTOP TABLE VIEW (hidden on small screens) ── */}
-      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
-        <div className="overflow-x-auto" style={{ position: 'relative' }}>
-          <table className="w-full text-left min-w-[4000px]">
-            <thead>
-              <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
-                <th className="px-6 py-4 w-10 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
-                  <input 
-                    type="checkbox" 
-                    checked={paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))}
-                    onChange={handleSelectAll}
-                    className="rounded border-gray-300 text-primary focus:ring-primary" 
-                  />
-                </th>
-                <th className="px-6 py-4 sticky left-10 z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CTN</th>
-                <th className="px-6 py-4">ORDER NUMBER</th>
-                <th className="px-6 py-4">ENTRY LEADS</th>
-                <th className="px-6 py-4">DATE</th>
-                <th className="px-6 py-4">TELE CALLING STAFF</th>
-                <th className="px-6 py-4">TECHNICAL STAFF</th>
-                <th className="px-6 py-4 sticky left-[10rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CUSTOMER CONTACTS NUMBER</th>
-                <th className="px-6 py-4 sticky left-[22rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CUSTOMER NAME</th>
-                <th className="px-6 py-4">CUSTOMER REQURMENT</th>
-                <th className="px-6 py-4 sticky left-[32rem] z-20 bg-gray-50 dark:bg-slate-800 shadow-[2px_0_5px_rgba(0,0,0,0.08)]">CURRENT STATUS</th>
-                <th className="px-6 py-4">DETAILS & NOTES</th>
-                <th className="px-6 py-4">CLAIM APPLY DATE</th>
-                <th className="px-6 py-4">FOLLOW UP DATE</th>
-                <th className="px-6 py-4">SERVICES CHARGES</th>
-                <th className="px-6 py-4">PAYMENT STATUS</th>
-                <th className="px-6 py-4">PDF FILE SEND</th>
-                <th className="px-6 py-4">RECIVE AMOUNT</th>
-                <th className="px-6 py-4">TRANSACTION ID</th>
-                <th className="px-6 py-4">RECIVE DATE</th>
-                <th className="px-6 py-4">REMARKS</th>
-                <th className="px-6 py-4">TECHNICAL SHARE (%)</th>
-                <th className="px-6 py-4">SALARY AMOUNT</th>
-                <th className="px-6 py-4">PAID DATE</th>
-                <th className="px-6 py-4">REMARKS</th>
-                <th className="px-6 py-4">TELECALLING SHARE (%)</th>
-                <th className="px-6 py-4">SALARY AMOUNT</th>
-                <th className="px-6 py-4">PAID DATE</th>
-                <th className="px-6 py-4">REMARKS</th>
-                <th className="px-6 py-4">TELE TOTAL AMOUNT</th>
-                <th className="px-6 py-4">TECHNICAL TOTAL AMOUNT</th>
-                <th className="px-6 py-4 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800 shadow-[-2px_0_5px_rgba(0,0,0,0.08)]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-              <AnimatePresence mode="popLayout">
-                {paginatedContacts.length > 0 ? (
-                  paginatedContacts.map((contact) => (
-                    <motion.tr 
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      key={contact.id} 
-                      className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50 transition-colors group"
-                    >
-                      <td className="px-6 py-4 sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedIds.has(contact.id)}
-                          onChange={() => handleToggleSelect(contact.id)}
-                          className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" 
-                        />
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 sticky left-10 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">{contact.ctn}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-500 dark:text-slate-400">{contact.orderNumber}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.entryLeads}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.date}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingStaff}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.technicalStaff}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 sticky left-[10rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">{contact.customerContactNumber}</td>
-                      <td className="px-6 py-4 sticky left-[22rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">{contact.customerName}</span>
-                          {contact.isFavorite && <Star size={12} className="fill-amber-400 text-amber-400" />}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.customerRequirement}</td>
-                      <td className="px-6 py-4 sticky left-[32rem] z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[2px_0_5px_rgba(0,0,0,0.06)]">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                          contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary" :
-                          contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                          "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        )}>
-                          {contact.currentStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.detailsNotes}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.claimApplyDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.followUpDate}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.serviceCharges}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.paymentStatus}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.pdfFileSend}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.receiveAmount}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.transactionId}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.receiveDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.remarks}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.technicalSharePercent}%</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">₹{contact.technicalSalaryAmount}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.technicalPaidDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.technicalRemarks}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingSharePercent}%</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">₹{contact.teleCallingSalaryAmount}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingPaidDate}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300">{contact.teleCallingRemarks}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.teleTotalAmount}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-gray-900 dark:text-white">₹{contact.technicalTotalAmount}</td>
-                      <td className="px-6 py-4 text-right sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/50 shadow-[-2px_0_5px_rgba(0,0,0,0.06)]">
-                        <div className="flex items-center justify-end gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <a 
-                            href={`tel:${contact.customerContactNumber}`}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 transition-colors"
-                            title="Call"
-                          >
-                            <Phone size={16} />
-                          </a>
-                          <a 
-                            href={`https://wa.me/${contact.customerContactNumber}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-2 rounded-lg hover:bg-primary/10 text-primary transition-colors"
-                            title="WhatsApp"
-                          >
-                            <MessageSquare size={16} />
-                          </a>
-                          <button 
-                            onClick={(e) => handleToggleFavorite(contact.id, e)}
-                            className={cn(
-                              "p-2 rounded-lg transition-colors",
-                              contact.isFavorite 
-                                ? "text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20" 
-                                : "text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
-                            )}
-                            title={contact.isFavorite ? "Remove from Favorites" : "Add to Favorites"}
-                          >
-                            <Star size={16} className={contact.isFavorite ? "fill-current" : ""} />
-                          </button>
-                          <button 
-                            onClick={() => handleViewContact(contact)}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 transition-colors" 
-                            title="View Details"
-                          >
-                            <MoreVertical size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleEditContact(contact)}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-400 transition-colors" 
-                            title="Edit"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))
-                ) : (
-                  <motion.tr
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="h-64"
-                    >
-                      <td colSpan={33} className="px-6 py-4 text-center">
-                      <div className="flex flex-col items-center justify-center gap-4">
-                        <div className="w-16 h-16 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-400">
-                          <Users size={32} />
-                        </div>
-                        <div>
-                          <p className="text-lg font-bold text-gray-900 dark:text-white">No contacts found</p>
-                          <p className="text-sm text-gray-500 dark:text-slate-400">Your contact list is currently empty.</p>
-                        </div>
-                      </div>
-                    </td>
-                  </motion.tr>
-                )}
-              </AnimatePresence>
-            </tbody>
-          </table>
-        </div>
-
-        <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-gray-500 dark:text-slate-400 font-medium">
-            Showing <span className="text-gray-900 dark:text-white">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="text-gray-900 dark:text-white">{Math.min(currentPage * ITEMS_PER_PAGE, filteredContacts.length)}</span> of <span className="text-gray-900 dark:text-white">{filteredContacts.length}</span> contacts
-          </p>
-          <div className="flex items-center gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronLeft size={18} /></button>
-            <div className="flex items-center gap-1">
-              {pageNumbers.map((page, index) => typeof page === 'string' ? (
-                <span key={`e-${index}`} className="w-9 h-9 flex items-center justify-center text-gray-400">...</span>
-              ) : (
-                <button key={page} onClick={() => setCurrentPage(page)} className={cn("w-9 h-9 rounded-lg text-sm font-bold transition-all", currentPage === page ? "bg-primary text-white shadow-md shadow-primary/20" : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400")}>{page}</button>
-              ))}
-            </div>
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronRight size={18} /></button>
+      {/* Mobile Cards */}
+      <div className="md:hidden space-y-3">
+        {paginatedContacts.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-12 flex flex-col items-center justify-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-gray-50 dark:bg-slate-800 flex items-center justify-center text-gray-400"><Users size={32} /></div>
+            <p className="text-lg font-bold text-gray-900 dark:text-white">No contacts found</p>
           </div>
-        </div>
+        ) : paginatedContacts.map(contact => (
+          <div key={contact.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
+              <div>
+                <p className="font-bold text-gray-900 dark:text-white">{contact.customerName || '—'}</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{contact.ctn || ''} · {contact.date || ''}</p>
+              </div>
+              <span className={cn("shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
+                contact.currentStatus === 'Completed' ? "bg-primary/10 text-primary" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+              )}>{contact.currentStatus}</span>
+            </div>
+            <div className="px-3 py-2.5 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center justify-end gap-1">
+              <button onClick={() => handleViewContact(contact)} className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"><Eye size={16} /></button>
+              {perms.canEditContact && (
+                <button onClick={() => handleEditContact(contact)} className="p-2.5 rounded-xl bg-primary text-white shadow-sm shadow-primary/20"><Edit2 size={16} /></button>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* ── SHARED MOBILE PAGINATION ── */}
-      {filteredContacts.length > ITEMS_PER_PAGE && (
-        <div className="md:hidden bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 flex flex-col items-center gap-3">
-          <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">
-            {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredContacts.length)} of {filteredContacts.length} contacts
-          </p>
-          <div className="flex items-center gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronLeft size={18} /></button>
-            <div className="flex items-center gap-1.5">
-              {pageNumbers.map((page, index) => typeof page === 'string' ? (
-                <span key={`em-${index}`} className="w-9 h-9 flex items-center justify-center text-gray-400 text-sm">…</span>
-              ) : (
-                <button key={page} onClick={() => setCurrentPage(page)} className={cn("w-9 h-9 rounded-xl text-sm font-bold transition-all", currentPage === page ? "bg-primary text-white shadow-md shadow-primary/20" : "hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400")}>{page}</button>
-              ))}
-            </div>
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2.5 rounded-xl border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors dark:text-slate-400"><ChevronRight size={18} /></button>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Modal */}
+      {/* ── Contact Modal ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsModalOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div 
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-slate-800"
+              className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-slate-800 flex flex-col max-h-[92vh]"
             >
-              <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                  {viewingContact ? 'Contact Details' : editingContact ? 'Edit Contact' : 'Add New Lead'}
-                </h2>
-                <button 
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-                >
+              {/* Modal Header */}
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50 shrink-0">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    {viewingContact ? 'View Lead' : editingContact ? 'Edit Lead' : 'New Lead Contact'}
+                  </h2>
+                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+                    {viewingContact ? 'Read-only view' : `Role: ${userRole} — you can edit highlighted fields`}
+                  </p>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors">
                   <X size={20} className="text-gray-500 dark:text-slate-400" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveContact} className="flex flex-col h-[70vh]">
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Basic Info */}
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-primary dark:text-primary uppercase tracking-wider">Basic Information</h3>
-                      <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CUSTOMER NAME *</label>
-                          <input name="customerName" required readOnly={!!viewingContact} value={modalFormData.customerName || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CUSTOMER CONTACTS NUMBER *</label>
-                          <input name="customerContactNumber" required type="tel" readOnly={!!viewingContact} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">ORDER NUMBER</label>
-                          <input name="orderNumber" readOnly={!!viewingContact} value={modalFormData.orderNumber || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">ENTRY LEADS</label>
-                          <input 
-                            name="entryLeads" 
-                            list="entryLeadsList"
-                            readOnly={!!viewingContact} 
-                            value={modalFormData.entryLeads || ''} 
-                            onChange={handleModalInputChange} 
-                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                          />
-                        </div>
+              <form onSubmit={handleSaveContact} className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-6 space-y-8">
+
+                  {/* Duplicate warning */}
+                  {duplicateWarning && (
+                    <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <AlertTriangle size={18} className="text-red-500 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-bold text-red-600 dark:text-red-400">Duplicate Entry Detected</p>
+                        <p className="text-xs text-red-500 dark:text-red-400 mt-0.5">{duplicateWarning}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Section 1: Basic Info (CTN → Remarks) ── */}
+                  <section>
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">1</span>
+                      Basic Information
+                    </h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                      {fv('ctn') && (
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CTN</label>
-                          <input name="ctn" readOnly={!!viewingContact} value={modalFormData.ctn || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
+                          <input name="ctn" readOnly={!fe('ctn')} value={modalFormData.ctn || ''} onChange={handleModalInputChange} className={inputCls('ctn')} />
+                        </div>
+                      )}
+                      {fv('orderNumber') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Order Number</label>
+                          <input name="orderNumber" readOnly={!fe('orderNumber')} value={modalFormData.orderNumber || ''} onChange={handleModalInputChange} className={inputCls('orderNumber')} />
+                        </div>
+                      )}
+                      {fv('entryLeads') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Entry Leads</label>
+                          <input name="entryLeads" list="entryLeadsList" readOnly={!fe('entryLeads')} value={modalFormData.entryLeads || ''} onChange={handleModalInputChange} className={inputCls('entryLeads')} />
+                        </div>
+                      )}
+                      {fv('date') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Date</label>
+                          <input type="date" name="date" readOnly={!fe('date')} value={modalFormData.date || ''} onChange={handleModalInputChange} className={inputCls('date')} />
+                        </div>
+                      )}
+                      {fv('teleCallingStaff') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Calling Staff</label>
+                          <input name="teleCallingStaff" list="staffList" readOnly={!fe('teleCallingStaff')} value={modalFormData.teleCallingStaff || ''} onChange={handleModalInputChange} className={inputCls('teleCallingStaff')} />
+                        </div>
+                      )}
+                      {fv('technicalStaff') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Staff</label>
+                          <input name="technicalStaff" list="staffList" readOnly={!fe('technicalStaff')} value={modalFormData.technicalStaff || ''} onChange={handleModalInputChange} className={inputCls('technicalStaff')} />
+                        </div>
+                      )}
+                      {fv('customerContactNumber') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Phone</label>
+                          <input name="customerContactNumber" readOnly={!fe('customerContactNumber')} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className={inputCls('customerContactNumber')} />
+                        </div>
+                      )}
+                      {fv('customerName') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Name</label>
+                          <input name="customerName" readOnly={!fe('customerName')} value={modalFormData.customerName || ''} onChange={handleModalInputChange} className={inputCls('customerName')} />
+                        </div>
+                      )}
+                      {fv('customerRequirement') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Requirement</label>
+                          <input name="customerRequirement" list="serviceTypesList" readOnly={!fe('customerRequirement')} value={modalFormData.customerRequirement || ''} onChange={handleModalInputChange} className={inputCls('customerRequirement')} />
+                        </div>
+                      )}
+                      {fv('currentStatus') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Current Status</label>
+                          <input name="currentStatus" list="statusesList" readOnly={!fe('currentStatus')} value={modalFormData.currentStatus || ''} onChange={handleModalInputChange} className={inputCls('currentStatus')} />
+                        </div>
+                      )}
+
+                      {/* Fields only visible for CTN_TO_REMARKS roles */}
+                      {fv('detailsNotes') && (
+                        <div className="space-y-1.5 col-span-2">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Details & Notes</label>
+                          <textarea name="detailsNotes" readOnly={!fe('detailsNotes')} value={modalFormData.detailsNotes || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('detailsNotes'), 'resize-none')} />
+                        </div>
+                      )}
+                      {fv('claimApplyDate') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Claim Apply Date</label>
+                          <input type="date" name="claimApplyDate" readOnly={!fe('claimApplyDate')} value={modalFormData.claimApplyDate || ''} onChange={handleModalInputChange} className={inputCls('claimApplyDate')} />
+                        </div>
+                      )}
+                      {fv('followUpDate') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Follow Up Date</label>
+                          <input type="date" name="followUpDate" readOnly={!fe('followUpDate')} value={modalFormData.followUpDate || ''} onChange={handleModalInputChange} className={inputCls('followUpDate')} />
+                        </div>
+                      )}
+                      {fv('pdfFileSend') && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PDF File Send</label>
+                          <input name="pdfFileSend" readOnly={!fe('pdfFileSend')} value={modalFormData.pdfFileSend || ''} onChange={handleModalInputChange} className={inputCls('pdfFileSend')} />
+                        </div>
+                      )}
+                      {fv('remarks') && (
+                        <div className="space-y-1.5 col-span-2">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Remarks</label>
+                          <textarea name="remarks" readOnly={!fe('remarks')} value={modalFormData.remarks || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('remarks'), 'resize-none')} />
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* ── Section 2: Salary / Payment ── */}
+                  {fv('receiveAmount') && (
+                    <section>
+                      <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center text-[10px]">2</span>
+                        Salary & Payment
+                        {!fe('receiveAmount') && <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Service Charges</label>
+                          <input name="serviceCharges" readOnly={!fe('serviceCharges')} value={modalFormData.serviceCharges || ''} onChange={handleModalInputChange} className={inputCls('serviceCharges')} />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">DATE</label>
-                          <input name="date" type="date" readOnly={!!viewingContact} value={modalFormData.date || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Payment Status</label>
+                          <input name="paymentStatus" list="paymentStatusesList" readOnly={!fe('paymentStatus')} value={modalFormData.paymentStatus || ''} onChange={handleModalInputChange} className={inputCls('paymentStatus')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Amount</label>
+                          <input name="receiveAmount" type="number" readOnly={!fe('receiveAmount')} value={modalFormData.receiveAmount || ''} onChange={handleModalInputChange} className={inputCls('receiveAmount')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Transaction ID</label>
+                          <input name="transactionId" readOnly={!fe('transactionId')} value={modalFormData.transactionId || ''} onChange={handleModalInputChange} className={inputCls('transactionId')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Date</label>
+                          <input type="date" name="receiveDate" readOnly={!fe('receiveDate')} value={modalFormData.receiveDate || ''} onChange={handleModalInputChange} className={inputCls('receiveDate')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Total Amount</label>
+                          <input name="teleTotalAmount" readOnly value={modalFormData.teleTotalAmount || ''} className={inputCls('teleTotalAmount')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Total Amount</label>
+                          <input name="technicalTotalAmount" readOnly value={modalFormData.technicalTotalAmount || ''} className={inputCls('technicalTotalAmount')} />
                         </div>
                       </div>
-                    </div>
+                    </section>
+                  )}
 
-                    {/* Service Info */}
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-primary dark:text-primary uppercase tracking-wider">Service Details</h3>
-                      <div className="space-y-3">
+                  {/* ── Section 3: Technical Share ── */}
+                  {fv('technicalSharePercent') && (
+                    <section>
+                      <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center text-[10px]">3</span>
+                        Technical Share
+                        {!fe('technicalSharePercent') && <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CUSTOMER REQURMENT</label>
-                          <input 
-                            name="customerRequirement" 
-                            list="serviceTypesList"
-                            readOnly={!!viewingContact} 
-                            value={modalFormData.customerRequirement || ''} 
-                            onChange={handleModalInputChange} 
-                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                          />
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Share %</label>
+                          <input name="technicalSharePercent" type="number" readOnly={!fe('technicalSharePercent')} value={modalFormData.technicalSharePercent || ''} onChange={handleModalInputChange} className={inputCls('technicalSharePercent')} />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CURRENT STATUS</label>
-                          <input 
-                            name="currentStatus" 
-                            list="statusesList"
-                            readOnly={!!viewingContact} 
-                            value={modalFormData.currentStatus || ''} 
-                            onChange={handleModalInputChange} 
-                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                          />
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Salary Amount</label>
+                          <input name="technicalSalaryAmount" readOnly value={modalFormData.technicalSalaryAmount || ''} className={inputCls('technicalSalaryAmount')} />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">DETAILS & NOTES</label>
-                          <textarea name="detailsNotes" readOnly={!!viewingContact} value={modalFormData.detailsNotes || ''} onChange={handleModalInputChange} rows={2} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white resize-none" />
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Paid Date</label>
+                          <input type="date" name="technicalPaidDate" readOnly={!fe('technicalPaidDate')} value={modalFormData.technicalPaidDate || ''} onChange={handleModalInputChange} className={inputCls('technicalPaidDate')} />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CLAIM APPLY DATE</label>
-                            <input name="claimApplyDate" type="date" readOnly={!!viewingContact} value={modalFormData.claimApplyDate || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">FOLLOW UP DATE</label>
-                            <input name="followUpDate" type="date" readOnly={!!viewingContact} value={modalFormData.followUpDate || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Remarks</label>
+                          <input name="technicalRemarks" readOnly={!fe('technicalRemarks')} value={modalFormData.technicalRemarks || ''} onChange={handleModalInputChange} className={inputCls('technicalRemarks')} />
                         </div>
                       </div>
-                    </div>
+                    </section>
+                  )}
 
-                    {/* Payment Info */}
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-primary dark:text-primary uppercase tracking-wider">Payment Information</h3>
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">SERVICES CHARGES</label>
-                            <input name="serviceCharges" readOnly={!!viewingContact} value={modalFormData.serviceCharges || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">RECIVE AMOUNT</label>
-                            <input name="receiveAmount" readOnly={!!viewingContact} value={modalFormData.receiveAmount || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PAYMENT STATUS</label>
-                            <input 
-                              name="paymentStatus" 
-                              list="paymentStatusesList"
-                              readOnly={!!viewingContact} 
-                              value={modalFormData.paymentStatus || ''} 
-                              onChange={handleModalInputChange} 
-                              className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TRANSACTION ID</label>
-                            <input name="transactionId" readOnly={!!viewingContact} value={modalFormData.transactionId || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">RECIVE DATE</label>
-                            <input name="receiveDate" type="date" readOnly={!!viewingContact} value={modalFormData.receiveDate || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PDF FILE SEND</label>
-                            <input name="pdfFileSend" readOnly={!!viewingContact} value={modalFormData.pdfFileSend || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
+                  {/* ── Section 4: TeleCalling Share ── */}
+                  {fv('teleCallingSharePercent') && (
+                    <section>
+                      <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center text-[10px]">4</span>
+                        TeleCalling Share
+                        {!fe('teleCallingSharePercent') && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TeleCalling Share %</label>
+                          <input name="teleCallingSharePercent" type="number" readOnly={!fe('teleCallingSharePercent')} value={modalFormData.teleCallingSharePercent || ''} onChange={handleModalInputChange} className={inputCls('teleCallingSharePercent')} />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">REMARKS</label>
-                          <textarea name="remarks" readOnly={!!viewingContact} value={modalFormData.remarks || ''} onChange={handleModalInputChange} rows={2} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white resize-none" />
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TeleCalling Salary Amount</label>
+                          <input name="teleCallingSalaryAmount" readOnly value={modalFormData.teleCallingSalaryAmount || ''} className={inputCls('teleCallingSalaryAmount')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TeleCalling Paid Date</label>
+                          <input type="date" name="teleCallingPaidDate" readOnly={!fe('teleCallingPaidDate')} value={modalFormData.teleCallingPaidDate || ''} onChange={handleModalInputChange} className={inputCls('teleCallingPaidDate')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TeleCalling Remarks</label>
+                          <input name="teleCallingRemarks" readOnly={!fe('teleCallingRemarks')} value={modalFormData.teleCallingRemarks || ''} onChange={handleModalInputChange} className={inputCls('teleCallingRemarks')} />
                         </div>
                       </div>
-                    </div>
+                    </section>
+                  )}
 
-                    {/* Staff Info */}
-                    <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">SCREENSHOT IMAGE</label>
-                          {modalFormData.screenShotImage ? (
-                            <div className="relative group w-full rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700">
-                              <img
-                                src={modalFormData.screenShotImage}
-                                alt="Screenshot"
-                                className="w-full max-h-48 object-contain bg-gray-50 dark:bg-slate-800"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => setViewingImage(modalFormData.screenShotImage!)}
-                                  className="p-2 bg-white rounded-lg text-gray-800 hover:bg-gray-100 transition-colors"
-                                >
-                                  <Eye size={18} />
-                                </button>
-                                {!viewingContact && (
-                                  <button
-                                    type="button"
-                                    onClick={handleDeleteScreenshot}
-                                    className="p-2 bg-red-500 rounded-lg text-white hover:bg-red-600 transition-colors"
-                                  >
-                                    <Trash2 size={18} />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            !viewingContact && (
-                              <label className={cn(
-                                "flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-all",
-                                isUploadingScreenshot && "opacity-60 cursor-wait"
-                              )}>
-                                {isUploadingScreenshot ? (
-                                  <Loader2 size={24} className="animate-spin text-primary" />
-                                ) : (
-                                  <>
-                                    <ImageIcon size={24} className="text-gray-400 mb-2" />
-                                    <span className="text-xs font-bold text-gray-400">Click to upload screenshot</span>
-                                    <span className="text-[10px] text-gray-300 mt-1">PNG, JPG up to 5MB</span>
-                                  </>
-                                )}
-                                <input
-                                  type="file"
-                                  className="hidden"
-                                  accept="image/*"
-                                  onChange={handleScreenshotUpload}
-                                  disabled={isUploadingScreenshot}
-                                />
-                              </label>
-                            )
+                  {/* ── Section 5: Screenshot ── */}
+                  {fv('screenShotImage') && (
+                    <section>
+                      <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center text-[10px]">5</span>
+                        Screenshot
+                      </h3>
+                      {modalFormData.screenShotImage ? (
+                        <div className="relative inline-block">
+                          <img src={modalFormData.screenShotImage} alt="Screenshot" className="rounded-xl max-h-48 cursor-pointer border border-gray-200 dark:border-slate-700" onClick={() => setViewingImage(modalFormData.screenShotImage!)} />
+                          {fe('screenShotImage') && (
+                            <button type="button" onClick={handleDeleteScreenshot} className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors">
+                              <X size={12} />
+                            </button>
                           )}
                         </div>
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-bold text-primary dark:text-primary uppercase tracking-wider">Staff Information</h3>
-                      <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TELE CALLING STAFF</label>
-                          <input 
-                            name="teleCallingStaff" 
-                            list="staffList"
-                            readOnly={!!viewingContact} 
-                            value={modalFormData.teleCallingStaff || ''} 
-                            onChange={handleModalInputChange} 
-                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TECHNICAL STAFF</label>
-                          <input 
-                            name="technicalStaff" 
-                            list="staffList"
-                            readOnly={!!viewingContact} 
-                            value={modalFormData.technicalStaff || ''} 
-                            onChange={handleModalInputChange} 
-                            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" 
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TECHNICAL SHARE (%)</label>
-                            <input name="technicalSharePercent" readOnly={!!viewingContact} value={modalFormData.technicalSharePercent || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">SALARY AMOUNT</label>
-                            <input name="technicalSalaryAmount" readOnly={!!viewingContact} value={modalFormData.technicalSalaryAmount || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PAID DATE</label>
-                            <input name="technicalPaidDate" type="date" readOnly={!!viewingContact} value={modalFormData.technicalPaidDate || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">REMARKS</label>
-                            <textarea name="technicalRemarks" readOnly={!!viewingContact} value={modalFormData.technicalRemarks || ''} onChange={handleModalInputChange} rows={1} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white resize-none" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TELECALLING SHARE (%)</label>
-                            <input name="teleCallingSharePercent" readOnly={!!viewingContact} value={modalFormData.teleCallingSharePercent || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">SALARY AMOUNT</label>
-                            <input name="teleCallingSalaryAmount" readOnly={!!viewingContact} value={modalFormData.teleCallingSalaryAmount || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PAID DATE</label>
-                            <input name="teleCallingPaidDate" type="date" readOnly={!!viewingContact} value={modalFormData.teleCallingPaidDate || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">REMARKS</label>
-                            <textarea name="teleCallingRemarks" readOnly={!!viewingContact} value={modalFormData.teleCallingRemarks || ''} onChange={handleModalInputChange} rows={1} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white resize-none" />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TELE TOTAL AMOUNT</label>
-                            <input name="teleTotalAmount" readOnly={!!viewingContact} value={modalFormData.teleTotalAmount || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">TECHNICAL TOTAL AMOUNT</label>
-                            <input name="technicalTotalAmount" readOnly={!!viewingContact} value={modalFormData.technicalTotalAmount || ''} onChange={handleModalInputChange} className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                      ) : fe('screenShotImage') ? (
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-primary/50 transition-colors">
+                          {isUploadingScreenshot ? <Loader2 size={24} className="animate-spin text-primary" /> : <><ImageIcon size={24} className="text-gray-300 dark:text-slate-600 mb-2" /><span className="text-xs text-gray-400 dark:text-slate-500">Click to upload screenshot</span></>}
+                          <input type="file" className="hidden" accept="image/*" onChange={handleScreenshotUpload} disabled={isUploadingScreenshot} />
+                        </label>
+                      ) : (
+                        <p className="text-sm text-gray-400 dark:text-slate-500">No screenshot uploaded.</p>
+                      )}
+                    </section>
+                  )}
                 </div>
 
-                <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex gap-3 bg-gray-50/50 dark:bg-slate-800/50">
-                  <button 
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
-                  >
+                {/* Footer */}
+                <div className="p-6 border-t border-gray-100 dark:border-slate-800 flex gap-3 bg-gray-50/50 dark:bg-slate-800/50 shrink-0">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
                     {viewingContact ? 'Close' : 'Cancel'}
                   </button>
                   {!viewingContact && (
-                    <button 
-                      type="submit"
-                      className="flex-1 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20"
-                    >
+                    <button type="submit" className="flex-1 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
                       {editingContact ? 'Update Contact' : 'Create Lead'}
                     </button>
                   )}
@@ -1406,57 +1003,28 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           </div>
         )}
       </AnimatePresence>
-       {viewingImage && (
-        <div
-          className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4"
-          onClick={() => setViewingImage(null)}
-        >
-          <button
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
-            onClick={() => setViewingImage(null)}
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={viewingImage}
-            alt="Screenshot"
-            className="max-w-full max-h-full object-contain rounded-xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+
+      {/* Image Viewer */}
+      {viewingImage && (
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4" onClick={() => setViewingImage(null)}>
+          <button className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors" onClick={() => setViewingImage(null)}><X size={24} /></button>
+          <img src={viewingImage} alt="Screenshot" className="max-w-full max-h-full object-contain rounded-xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
-      {/* Datalists for editable dropdowns — now use custom (editable) lists */}
-      <datalist id="serviceTypesList">
-        {customServiceTypes.map(s => <option key={s} value={s} />)}
-      </datalist>
-      <datalist id="statusesList">
-        {customStatuses.map(s => <option key={s} value={s} />)}
-      </datalist>
-      <datalist id="entryLeadsList">
-        <option value="New" />
-        <option value="Re_Entry" />
-      </datalist>
-      <datalist id="paymentStatusesList">
-        {customPaymentStatuses.map(s => <option key={s} value={s} />)}
-      </datalist>
-      <datalist id="staffList">
-        {customStaff.map(s => <option key={s} value={s} />)}
-      </datalist>
-      <datalist id="branchesList">
-        {customBranches.map(s => <option key={s} value={s} />)}
-      </datalist>
 
-      {/* Dropdown Manager Modal — Admin only */}
+      {/* Datalists */}
+      <datalist id="serviceTypesList">{customServiceTypes.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="statusesList">{customStatuses.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="entryLeadsList"><option value="New" /><option value="Re_Entry" /></datalist>
+      <datalist id="paymentStatusesList">{customPaymentStatuses.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="staffList">{customStaff.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="branchesList">{customBranches.map(s => <option key={s} value={s} />)}</datalist>
+
+      {/* Dropdown Manager (Admin only) */}
       <AnimatePresence>
         {isDropdownManagerOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsDropdownManagerOpen(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsDropdownManagerOpen(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1465,70 +1033,34 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
             >
               <div className="px-6 py-4 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">Manage Dropdown Options</h2>
-                <button onClick={() => setIsDropdownManagerOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                  <X size={20} className="text-gray-500 dark:text-slate-400" />
-                </button>
+                <button onClick={() => setIsDropdownManagerOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20} className="text-gray-500 dark:text-slate-400" /></button>
               </div>
-
-              {/* Tab bar */}
               <div className="flex gap-1 px-4 pt-3 overflow-x-auto shrink-0">
                 {(Object.keys(dropdownConfig) as Array<typeof dropdownManagerTab>).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); }}
-                    className={cn(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all",
-                      dropdownManagerTab === tab ? "bg-primary text-white" : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800"
-                    )}
-                  >
+                  <button key={tab} onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); }}
+                    className={cn("px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all", dropdownManagerTab === tab ? "bg-primary text-white" : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800")}>
                     {dropdownConfig[tab].label.split(' ')[0]}
                   </button>
                 ))}
               </div>
-
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 <p className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider">{dropdownConfig[dropdownManagerTab].label}</p>
-
-                {/* Add new item */}
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newDropdownItem}
-                    onChange={e => setNewDropdownItem(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddDropdownItem())}
-                    placeholder="Type new option and press Enter..."
-                    className="flex-1 bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white"
-                  />
-                  <button
-                    onClick={handleAddDropdownItem}
-                    className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-all"
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <input type="text" value={newDropdownItem} onChange={e => setNewDropdownItem(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleAddDropdownItem())} placeholder="Type new option and press Enter..." className="flex-1 bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white" />
+                  <button onClick={handleAddDropdownItem} className="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary/90 transition-all"><Plus size={16} /></button>
                 </div>
-
-                {/* List of items */}
                 <div className="space-y-2">
-                  {dropdownConfig[dropdownManagerTab].list.length === 0 && (
-                    <p className="text-sm text-gray-400 dark:text-slate-500 text-center py-4">No options yet. Add one above.</p>
-                  )}
+                  {dropdownConfig[dropdownManagerTab].list.length === 0 && <p className="text-sm text-gray-400 dark:text-slate-500 text-center py-4">No options yet.</p>}
                   {dropdownConfig[dropdownManagerTab].list.map(item => (
                     <div key={item} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl group">
                       <span className="text-sm text-gray-800 dark:text-slate-200">{item}</span>
-                      <button
-                        onClick={() => handleRemoveDropdownItem(item)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Remove"
-                      >
-                        <X size={14} />
-                      </button>
+                      <button onClick={() => handleRemoveDropdownItem(item)} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"><X size={14} /></button>
                     </div>
                   ))}
                 </div>
               </div>
-
               <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50">
-                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Changes are saved automatically and persist across sessions.</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Changes are saved automatically.</p>
               </div>
             </motion.div>
           </div>
