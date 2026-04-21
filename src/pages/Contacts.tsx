@@ -500,6 +500,14 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const fv = (fieldName: string) => isFieldVisible(fieldName, userRole);
   const fe = (fieldName: string) => !viewingContact && isFieldEditable(fieldName, userRole);
 
+  // ── Section-level visibility guards (robust: checks group membership directly) ──
+  // These avoid false negatives from isFieldVisible when permissions.ts field lists differ
+  const showBasicSection = perms.visibleFields.includes('ctn_to_remarks') || perms.visibleFields.includes('ctn_to_current_status');
+  const showSalarySection = perms.visibleFields.includes('salary_amount');
+  const showTechnicalSection = perms.visibleFields.includes('technical_share');
+  const showTeleCallingSection = perms.visibleFields.includes('telecalling_share');
+  const showScreenshotSection = perms.visibleFields.includes('screenshot');
+
   // Input class helper
   const inputCls = (fieldName: string) => cn(
     "w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white",
@@ -758,7 +766,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     </div>
                   )}
 
-                  {/* ── Section 1: Basic Info (CTN → Remarks) ── */}
+                  {/* ── Section 1: Basic Info (CTN → Remarks / CTN → Current Status) ── */}
+                  {showBasicSection && (
                   <section>
                     <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                       <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">1</span>
@@ -859,14 +868,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                       )}
                     </div>
                   </section>
+                  )}
 
                   {/* ── Section 2: Salary / Payment ── */}
-                  {fv('receiveAmount') && (
+                  {showSalarySection && (
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center text-[10px]">2</span>
                         Salary & Payment
-                        {!fe('receiveAmount') && <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                        {!perms.editableFields.includes('salary_amount') && <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">View Only</span>}
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
@@ -902,12 +912,12 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   )}
 
                   {/* ── Section 3: Technical Share ── */}
-                  {fv('technicalSharePercent') && (
+                  {showTechnicalSection && (
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center text-[10px]">3</span>
                         Technical Share
-                        {!fe('technicalSharePercent') && <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                        {!perms.editableFields.includes('technical_share') && <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">View Only</span>}
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
@@ -931,12 +941,12 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   )}
 
                   {/* ── Section 4: TeleCalling Share ── */}
-                  {fv('teleCallingSharePercent') && (
+                  {showTeleCallingSection && (
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center text-[10px]">4</span>
                         TeleCalling Share
-                        {!fe('teleCallingSharePercent') && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">View Only</span>}
+                        {!perms.editableFields.includes('telecalling_share') && <span className="text-[10px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded-full">View Only</span>}
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1.5">
@@ -960,7 +970,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   )}
 
                   {/* ── Section 5: Screenshot ── */}
-                  {fv('screenShotImage') && (
+                  {showScreenshotSection && (
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 flex items-center justify-center text-[10px]">5</span>
