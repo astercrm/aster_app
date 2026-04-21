@@ -636,7 +636,10 @@ async function startServer() {
       action,
       details: details || '',
     });
-    if (error) return res.status(500).json({ message: error.message });
+    if (error) {
+      if (error.message.includes('row-level security')) console.error('\n🚨 Supabase RLS Error:', error.message, '\n👉 NOTE: You need to disable RLS on the "user_activity" table in Supabase!\n');
+      return res.status(500).json({ message: error.message });
+    }
     res.json({ success: true });
   });
 

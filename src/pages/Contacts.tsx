@@ -221,11 +221,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     try {
       await api.deleteContact(id);
       setContacts(prev => prev.filter(c => c.id !== id));
-      await api.logActivity({
-        userId: user.id, userName: user.name, userEmail: user.email,
-        action: 'contact_deleted',
-        details: `Deleted contact ID: ${id}`,
-      });
+      try {
+        await api.logActivity({
+          userId: user.id, userName: user.name, userEmail: user.email,
+          action: 'contact_deleted',
+          details: `Deleted contact ID: ${id}`,
+        });
+      } catch (logErr) {
+        console.warn('Activity logging skipped:', logErr);
+      }
       triggerToast('Contact deleted successfully');
     } catch (error) {
       console.error('Failed to delete contact:', error);
@@ -460,20 +464,28 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       if (editingContact) {
         const updatedContact = await api.updateContact(editingContact.id, contactData);
         setContacts(prev => prev.map(c => c.id === editingContact.id ? updatedContact : c));
-        await api.logActivity({
-          userId: user.id, userName: user.name, userEmail: user.email,
-          action: 'contact_updated',
-          details: `Updated contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
-        });
+        try {
+          await api.logActivity({
+            userId: user.id, userName: user.name, userEmail: user.email,
+            action: 'contact_updated',
+            details: `Updated contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
+          });
+        } catch (logErr) {
+          console.warn('Activity logging skipped:', logErr);
+        }
         triggerToast('Contact updated successfully');
       } else {
         const createdContact = await api.createContact(contactData);
         setContacts(prev => [createdContact, ...prev]);
-        await api.logActivity({
-          userId: user.id, userName: user.name, userEmail: user.email,
-          action: 'contact_created',
-          details: `Created contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
-        });
+        try {
+          await api.logActivity({
+            userId: user.id, userName: user.name, userEmail: user.email,
+            action: 'contact_created',
+            details: `Created contact: ${contactData.customerName} (CTN: ${contactData.ctn || 'N/A'})`,
+          });
+        } catch (logErr) {
+          console.warn('Activity logging skipped:', logErr);
+        }
         triggerToast('Lead created successfully');
       }
       setIsModalOpen(false);
