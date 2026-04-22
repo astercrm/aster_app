@@ -198,9 +198,11 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       receiveDate: toInputDate(contact.receiveDate),
       technicalPaidDate: toInputDate(contact.technicalPaidDate),
       teleCallingPaidDate: toInputDate(contact.teleCallingPaidDate),
+      transactionId: '', // Always blank — user must enter a fresh Transaction ID each time
     });
     setIsModalOpen(true);
   };
+
 
   const handleViewContact = (contact: Contact) => {
     setViewingContact(contact);
@@ -954,7 +956,18 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Transaction ID</label>
-                          <input name="transactionId" readOnly={!fe('transactionId')} value={modalFormData.transactionId || ''} onChange={handleModalInputChange} className={inputCls('transactionId')} />
+                          <input
+                            name="transactionId"
+                            readOnly={!fe('transactionId')}
+                            value={modalFormData.transactionId || ''}
+                            onChange={handleModalInputChange}
+                            className={inputCls('transactionId')}
+                            autoComplete="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            placeholder="Enter new Transaction ID"
+                          />
+
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Date</label>

@@ -53,29 +53,37 @@ export default function App() {
 // ✅ Heartbeat — sends every 2 minutes to track online users
 useEffect(() => {
   if (!user) return;
-  
+
+  // Mark attendance for today (double-ensures the record exists even if server-side insert had a type issue)
+  api.markAttendance({
+    userId: String(user.id),
+    userName: user.name,
+    userEmail: user.email,
+  }).catch(err => console.warn('Attendance mark failed (non-critical):', err.message));
+
   // Log login activity
   api.logActivity({
-    userId: user.id,
+    userId: String(user.id),
     userName: user.name,
     userEmail: user.email,
     action: 'login',
     details: 'User opened app',
-  });
+  }).catch(() => {});
 
   // Send heartbeat every 2 minutes
   const interval = setInterval(() => {
     api.logActivity({
-      userId: user.id,
+      userId: String(user.id),
       userName: user.name,
       userEmail: user.email,
       action: 'heartbeat',
       details: '',
-    });
+    }).catch(() => {});
   }, 2 * 60 * 1000);
 
   return () => clearInterval(interval);
 }, [user]);
+
   return (
     <Router>
       <Routes>

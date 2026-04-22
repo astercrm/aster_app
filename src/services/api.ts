@@ -65,4 +65,8 @@ getActivity: () => request<any[]>('/activity'),
 getOnlineUsers: () => request<any[]>('/activity/online'),
 getActivitySummary: () => request<any[]>('/activity/summary'),
 
+// Attendance
+markAttendance: (data: { userId: string; userName: string; userEmail: string }) =>
+  request<{ success: boolean; date: string }>('/attendance', { method: 'POST', body: JSON.stringify(data) }),
+
 };
