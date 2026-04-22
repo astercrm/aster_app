@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useState, useEffect } from 'react';
 import Dashboard from './pages/Dashboard';
 import Contacts from './pages/Contacts';
-import Chatbot from './pages/Chatbot';
 import Favorites from './pages/Favorites';
 import AdminPanel from './pages/AdminPanel';
 import Settings from './pages/Settings';
@@ -97,7 +96,6 @@ useEffect(() => {
                   <Routes>
                     <Route path="/" element={<Dashboard contacts={contacts} user={user} />} />
                     <Route path="/contacts" element={<Contacts contacts={contacts} setContacts={setContacts} user={user} />} />
-                    <Route path="/chatbot" element={<Chatbot />} />
                     <Route path="/favorites" element={<Favorites contacts={contacts} setContacts={setContacts} />} />
                     <Route path="/admin" element={user.role === 'Admin' ? <AdminPanel /> : <Navigate to="/" />} />
                     <Route path="/settings" element={<Settings theme={theme} setTheme={setTheme} user={user} setUser={setUser} />} />

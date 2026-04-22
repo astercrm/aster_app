@@ -2,17 +2,15 @@ import { NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Users, 
-  Search, 
-  MessageSquare, 
   Star, 
   ShieldCheck, 
   Settings,
   ChevronLeft,
   ChevronRight,
-  Contact2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { User } from '../types';
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,11 +21,11 @@ interface SidebarProps {
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Users, label: 'Contacts', path: '/contacts' },
-  { icon: MessageSquare, label: 'AI Chatbot', path: '/chatbot' },
   { icon: Star, label: 'Favorites', path: '/favorites' },
   { icon: ShieldCheck, label: 'Admin Panel', path: '/admin', adminOnly: true },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
+
 
 export default function Sidebar({ isOpen, toggle, user }: SidebarProps) {
   return (

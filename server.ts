@@ -545,6 +545,24 @@ async function startServer() {
       }
     }
 
+    // Duplicate Transaction ID check (only when a non-empty transaction ID is supplied)
+    if (contact.transactionId && contact.transactionId.trim() !== '') {
+      const { data: existingByTxn } = await supabase
+        .from('contacts')
+        .select('id, customer_name, transaction_id')
+        .eq('transaction_id', contact.transactionId.trim())
+        .maybeSingle();
+
+      if (existingByTxn) {
+        return res.status(409).json({
+          message: `Duplicate Transaction ID: "${contact.transactionId}" already exists for "${existingByTxn.customer_name}".`,
+          duplicate: true,
+          existingId: existingByTxn.id,
+        });
+      }
+    }
+
+
     const { data, error } = await supabase
       .from('contacts')
       .insert(toDB(contact))
@@ -648,14 +666,23 @@ async function startServer() {
       .order('date', { ascending: false });
 
     if (from) query = query.gte('date', from);
-    if (to) query = query.lte('date', to);
+    if (to)   query = query.lte('date', to);
     if (userId) query = query.eq('user_id', userId);
 
     const { data, error } = await query;
+
     if (error) {
-      console.error('Attendance fetch error:', error.message);
-      return res.status(500).json({ message: error.message });
+      console.error('❌ Attendance fetch error:', error.message, '| code:', error.code);
+      const noTable = error.code === '42P01';
+      const isRLS   = error.code === '42501' || (error.message || '').includes('row-level security');
+      const msg = noTable
+        ? 'The "attendance" table does not exist. Run the setup SQL in Supabase SQL Editor.'
+        : isRLS
+          ? 'RLS is blocking this query. Add SUPABASE_SERVICE_ROLE_KEY to .env.local, or disable RLS on the attendance table.'
+          : error.message;
+      return res.status(500).json({ message: msg });
     }
+
     // Normalize date to YYYY-MM-DD string regardless of Supabase return format
     const normalized = (data || []).map((row: any) => ({
       ...row,
@@ -663,6 +690,8 @@ async function startServer() {
     }));
     res.json(normalized);
   });
+
+
 
   // Get attendance summary per user (for admin dashboard)
   app.get('/api/attendance/summary', async (req, res) => {
