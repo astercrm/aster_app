@@ -68,12 +68,17 @@ export default function AdminPanel() {
       const lastDay = new Date(year, month, 0).getDate();
       const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       const res = await fetch(`/api/attendance?from=${from}&to=${to}`);
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('Invalid response from server');
+      // Parse response body first so we can show the real Supabase error message
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = payload?.message || `Server error: ${res.status}`;
+        throw new Error(msg);
+      }
+      const payload = await api.getAttendance(from, to);
+      if (!Array.isArray(payload)) throw new Error('Invalid response from server');
       // Normalize: Supabase may return full ISO timestamps for DATE columns.
       // Slice to YYYY-MM-DD so Set lookups work correctly.
-      const normalized = data.map((row: any) => ({
+      const normalized = payload.map((row: any) => ({
         ...row,
         date: typeof row.date === 'string' ? row.date.slice(0, 10) : row.date,
       }));
@@ -87,16 +92,22 @@ export default function AdminPanel() {
     }
   };
 
+
   const fetchActivity = async () => {
     setActLoading(true);
     setActError(null);
     try {
-      // Use direct fetch — api service may not have getActivity method
       const res = await fetch('/api/activity');
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data)) throw new Error('Invalid response from server');
-      setActivity(data);
+      // Parse body first so we can surface the real Supabase/server error
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg = payload?.message || `Server error: ${res.status}`;
+        throw new Error(msg);
+      }
+      const payload = await api.getActivity();
+      if (!Array.isArray(payload)) throw new Error('Invalid response from server');
+      setActivity(payload);
+      setActivity(payload.filter((row: any) => row.action !== 'heartbeat'));
     } catch (e: any) {
       console.error('Activity fetch error:', e);
       setActError(e.message || 'Failed to load activity log.');
@@ -105,6 +116,7 @@ export default function AdminPanel() {
       setActLoading(false);
     }
   };
+
 
   // ── Users helpers ─────────────────────────────────────────────────────────
   const filteredUsers = users.filter((user: any) => {
@@ -203,6 +215,8 @@ export default function AdminPanel() {
   const changeAttMonth = (delta: number) => {
     const d = new Date(`${attMonth}-01`);
     d.setMonth(d.getMonth() + delta);
+    const [y, m] = attMonth.split('-').map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
     setAttMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
 
@@ -423,6 +437,7 @@ export default function AdminPanel() {
             </button>
             <span className="text-lg font-bold text-gray-900 dark:text-white min-w-[160px] text-center">
               {new Date(`${attMonth}-01`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              {new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </span>
             <button onClick={() => changeAttMonth(1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
               <ChevronRight size={18} className="text-gray-500 dark:text-slate-400" />
@@ -721,3 +736,4 @@ export default function AdminPanel() {
     </div>
   );
 }
+                <button onClick={handleDeleteUser} className="flex-1 px-4 py-2.5 bg-r

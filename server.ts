@@ -14,8 +14,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_ANON_KEY!;
+// Use the Service Role Key on the server so RLS never blocks admin queries.
+// Falls back to ANON key if service key is not set.
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 // Helper to convert DB row (snake_case) to frontend Contact (camelCase)
 function toContact(row: any) {
@@ -106,6 +111,12 @@ async function startServer() {
   const saltRounds = 10;
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Log which Supabase key type is active — helps debug RLS issues
+  const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role (RLS bypassed ✅)' : 'anon (RLS applies ⚠️ — add SUPABASE_SERVICE_ROLE_KEY to .env.local)';
+  console.log(`\n🔑 Supabase key: ${keyType}\n`);
+
+
 
   // ── UPLOADS ─────────────────────────────────────────────────────────────────
   const upload = multer({
