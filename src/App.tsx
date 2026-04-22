@@ -88,11 +88,11 @@ useEffect(() => {
           </>
         ) : (
           <Route path="/*" element={
-            <div className="flex h-screen bg-[#F8F9FA] dark:bg-[#0F172A] text-[#1A1A1A] dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
+            <div className="sky-bg flex h-screen text-[#1A1A1A] dark:text-slate-200 font-sans overflow-hidden transition-colors duration-300">
           <Sidebar user={user} isOpen={isSidebarOpen} toggle={() => setIsSidebarOpen(!isSidebarOpen)} />
               <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                 <Topbar user={user} onLogout={() => setUser(null)} />
-                <main className="flex-1 overflow-y-auto p-4 md:p-8">
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 relative z-10">
                   <Routes>
                     <Route path="/" element={<Dashboard contacts={contacts} user={user} />} />
                     <Route path="/contacts" element={<Contacts contacts={contacts} setContacts={setContacts} user={user} />} />

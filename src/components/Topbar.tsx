@@ -27,7 +27,7 @@ export default function Topbar({ user, onLogout }: TopbarProps) {
   const [showProfile, setShowProfile] = useState(false);
 
   return (
-    <header className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+    <header className="topbar-sky h-16 px-8 flex items-center justify-between sticky top-0 z-30">
       <div className="flex items-center gap-4 md:hidden mr-4">
         <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm overflow-hidden border border-gray-100 dark:border-slate-800">
           <img 

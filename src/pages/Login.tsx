@@ -47,7 +47,7 @@ export default function Login({ onLogin, onToggleView }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] dark:bg-slate-950 flex flex-col justify-center p-4 font-sans relative overflow-x-hidden overflow-y-auto">
+    <div className="sky-bg min-h-screen flex flex-col justify-center p-4 font-sans relative overflow-x-hidden overflow-y-auto">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px]"></div>
 

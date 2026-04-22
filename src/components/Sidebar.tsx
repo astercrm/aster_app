@@ -31,7 +31,7 @@ export default function Sidebar({ isOpen, toggle, user }: SidebarProps) {
   return (
     <aside 
       className={cn(
-        "bg-white dark:bg-[#151619] text-gray-900 dark:text-white transition-all duration-300 flex flex-col border-r border-gray-100 dark:border-white/10",
+        "sidebar-sky text-gray-900 dark:text-white transition-all duration-300 flex flex-col",
         isOpen ? "w-64" : "w-20"
       )}
     >
