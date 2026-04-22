@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import * as Excel from 'exceljs';
-import { 
+import {
   Search, Filter, Plus, MoreVertical, Phone, MessageSquare, Mail, MapPin, Building2,
   ChevronLeft, ChevronRight, Download, Upload, Star, Trash2, Edit2, X,
   CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle
@@ -80,7 +80,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [customStaff, setCustomStaff] = useState<string[]>(() => loadList('aster_staff', staff));
   const [customBranches, setCustomBranches] = useState<string[]>(() => loadList('aster_branches', branches));
   const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(() => loadList('aster_paymentStatuses', paymentStatuses));
-  const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch {} };
+  const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch { } };
 
   const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; storageKey: string }> = {
     serviceTypes: { label: 'Service Types (Customer Requirement)', list: customServiceTypes, setList: (l) => { setCustomServiceTypes(l); saveList('aster_serviceTypes', l); }, storageKey: 'aster_serviceTypes' },
@@ -245,8 +245,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   };
 
   const downloadTemplate = async () => {
-    const headers = ['ORDER NUMBER','ENTRY LEADS','CTN','DATE','TELE CALLING STAFF','TECHNICAL STAFF','CUSTOMER CONTACTS NUMBER','CUSTOMER NAME','CUSTOMER REQURMENT','CURRENT STATUS','DETAILS & NOTES','CLAIM APPLY DATE','FOLLOW UP DATE','SERVICES CHARGES','PAYMENT STATUS','PDF FILE SEND','RECIVE AMOUNT','TRANSACTION ID','RECIVE DATE','REMARKS','TECHNICAL SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELECALLING SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELE TOTAL AMOUNT','TECHNICAL TOTAL AMOUNT'];
-    const data = [headers, ['ORD-1001','New','PT 26 0651','26-Jan-2026','Jaya','ERD_Kowsalya','9876543210','Ravi Kumar','F31 Advance','New','','26-Jan-2026','','500','Full Paid','Yes','500','T123456','26-Jan-2026','','10','500','26-Jan-2026','Send Accounts Group','5','200','26-Jan-2026','','700','1200']];
+    const headers = ['ORDER NUMBER', 'ENTRY LEADS', 'CTN', 'DATE', 'TELE CALLING STAFF', 'TECHNICAL STAFF', 'CUSTOMER CONTACTS NUMBER', 'CUSTOMER NAME', 'CUSTOMER REQURMENT', 'CURRENT STATUS', 'DETAILS & NOTES', 'CLAIM APPLY DATE', 'FOLLOW UP DATE', 'SERVICES CHARGES', 'PAYMENT STATUS', 'PDF FILE SEND', 'RECIVE AMOUNT', 'TRANSACTION ID', 'RECIVE DATE', 'REMARKS', 'TECHNICAL SHARE (%)', 'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELECALLING SHARE (%)', 'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELE TOTAL AMOUNT', 'TECHNICAL TOTAL AMOUNT'];
+    const data = [headers, ['ORD-1001', 'New', 'PT 26 0651', '26-Jan-2026', 'Jaya', 'ERD_Kowsalya', '9876543210', 'Ravi Kumar', 'F31 Advance', 'New', '', '26-Jan-2026', '', '500', 'Full Paid', 'Yes', '500', 'T123456', '26-Jan-2026', '', '10', '500', '26-Jan-2026', 'Send Accounts Group', '5', '200', '26-Jan-2026', '', '700', '1200']];
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Template');
     worksheet.addRows(data);
@@ -259,8 +259,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   };
 
   const downloadCurrentContacts = async () => {
-    const headers = ['ORDER NUMBER','ENTRY LEADS','CTN','DATE','TELE CALLING STAFF','TECHNICAL STAFF','CUSTOMER CONTACTS NUMBER','CUSTOMER NAME','CUSTOMER REQURMENT','CURRENT STATUS','DETAILS & NOTES','CLAIM APPLY DATE','FOLLOW UP DATE','SERVICES CHARGES','PAYMENT STATUS','PDF FILE SEND','RECIVE AMOUNT','TRANSACTION ID','RECIVE DATE','REMARKS','TECHNICAL SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELECALLING SHARE (%)','SALARY AMOUNT','PAID DATE','REMARKS','TELE TOTAL AMOUNT','TECHNICAL TOTAL AMOUNT'];
-    const data = contacts.map(c => [c.orderNumber,c.entryLeads,c.ctn,c.date,c.teleCallingStaff,c.technicalStaff,c.customerContactNumber,c.customerName,c.customerRequirement,c.currentStatus,c.detailsNotes,c.claimApplyDate,c.followUpDate,c.serviceCharges,c.paymentStatus,c.pdfFileSend,c.receiveAmount,c.transactionId,c.receiveDate,c.remarks,c.technicalSharePercent,c.technicalSalaryAmount,c.technicalPaidDate,c.technicalRemarks,c.teleCallingSharePercent,c.teleCallingSalaryAmount,c.teleCallingPaidDate,c.teleCallingRemarks,c.teleTotalAmount,c.technicalTotalAmount]);
+    const headers = ['ORDER NUMBER', 'ENTRY LEADS', 'CTN', 'DATE', 'TELE CALLING STAFF', 'TECHNICAL STAFF', 'CUSTOMER CONTACTS NUMBER', 'CUSTOMER NAME', 'CUSTOMER REQURMENT', 'CURRENT STATUS', 'DETAILS & NOTES', 'CLAIM APPLY DATE', 'FOLLOW UP DATE', 'SERVICES CHARGES', 'PAYMENT STATUS', 'PDF FILE SEND', 'RECIVE AMOUNT', 'TRANSACTION ID', 'RECIVE DATE', 'REMARKS', 'TECHNICAL SHARE (%)', 'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELECALLING SHARE (%)', 'SALARY AMOUNT', 'PAID DATE', 'REMARKS', 'TELE TOTAL AMOUNT', 'TECHNICAL TOTAL AMOUNT'];
+    const data = contacts.map(c => [c.orderNumber, c.entryLeads, c.ctn, c.date, c.teleCallingStaff, c.technicalStaff, c.customerContactNumber, c.customerName, c.customerRequirement, c.currentStatus, c.detailsNotes, c.claimApplyDate, c.followUpDate, c.serviceCharges, c.paymentStatus, c.pdfFileSend, c.receiveAmount, c.transactionId, c.receiveDate, c.remarks, c.technicalSharePercent, c.technicalSalaryAmount, c.technicalPaidDate, c.technicalRemarks, c.teleCallingSharePercent, c.teleCallingSalaryAmount, c.teleCallingPaidDate, c.teleCallingRemarks, c.teleTotalAmount, c.technicalTotalAmount]);
     const workbook = new Excel.Workbook();
     const worksheet = workbook.addWorksheet('Contacts');
     worksheet.addRows([headers, ...data]);
@@ -664,8 +664,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   <td className="px-6 py-4">
                     <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
                       contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
-                      contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                      "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                          "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     )}>{contact.currentStatus || '—'}</span>
                   </td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
@@ -794,106 +794,106 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
                   {/* ── Section 1: Basic Info (CTN → Remarks / CTN → Current Status) ── */}
                   {showBasicSection && (
-                  <section>
-                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">1</span>
-                      Basic Information
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                      {fv('ctn') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CTN</label>
-                          <input name="ctn" readOnly={!fe('ctn')} value={modalFormData.ctn || ''} onChange={handleModalInputChange} className={inputCls('ctn')} />
-                        </div>
-                      )}
-                      {fv('orderNumber') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Order Number</label>
-                          <input name="orderNumber" readOnly={!fe('orderNumber')} value={modalFormData.orderNumber || ''} onChange={handleModalInputChange} className={inputCls('orderNumber')} />
-                        </div>
-                      )}
-                      {fv('entryLeads') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Entry Leads</label>
-                          <input name="entryLeads" list="entryLeadsList" readOnly={!fe('entryLeads')} value={modalFormData.entryLeads || ''} onChange={handleModalInputChange} className={inputCls('entryLeads')} />
-                        </div>
-                      )}
-                      {fv('date') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Date</label>
-                          <input type="date" name="date" readOnly={!fe('date')} value={modalFormData.date || ''} onChange={handleModalInputChange} className={inputCls('date')} />
-                        </div>
-                      )}
-                      {fv('teleCallingStaff') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Calling Staff</label>
-                          <input name="teleCallingStaff" list="staffList" readOnly={!fe('teleCallingStaff')} value={modalFormData.teleCallingStaff || ''} onChange={handleModalInputChange} className={inputCls('teleCallingStaff')} />
-                        </div>
-                      )}
-                      {fv('technicalStaff') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Staff</label>
-                          <input name="technicalStaff" list="staffList" readOnly={!fe('technicalStaff')} value={modalFormData.technicalStaff || ''} onChange={handleModalInputChange} className={inputCls('technicalStaff')} />
-                        </div>
-                      )}
-                      {fv('customerContactNumber') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Phone</label>
-                          <input name="customerContactNumber" readOnly={!fe('customerContactNumber')} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className={inputCls('customerContactNumber')} />
-                        </div>
-                      )}
-                      {fv('customerName') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Name</label>
-                          <input name="customerName" readOnly={!fe('customerName')} value={modalFormData.customerName || ''} onChange={handleModalInputChange} className={inputCls('customerName')} />
-                        </div>
-                      )}
-                      {fv('customerRequirement') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Requirement</label>
-                          <input name="customerRequirement" list="serviceTypesList" readOnly={!fe('customerRequirement')} value={modalFormData.customerRequirement || ''} onChange={handleModalInputChange} className={inputCls('customerRequirement')} />
-                        </div>
-                      )}
-                      {fv('currentStatus') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Current Status</label>
-                          <input name="currentStatus" list="statusesList" readOnly={!fe('currentStatus')} value={modalFormData.currentStatus || ''} onChange={handleModalInputChange} className={inputCls('currentStatus')} />
-                        </div>
-                      )}
+                    <section>
+                      <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">1</span>
+                        Basic Information
+                      </h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {fv('ctn') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CTN</label>
+                            <input name="ctn" readOnly={!fe('ctn')} value={modalFormData.ctn || ''} onChange={handleModalInputChange} className={inputCls('ctn')} />
+                          </div>
+                        )}
+                        {fv('orderNumber') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Order Number</label>
+                            <input name="orderNumber" readOnly={!fe('orderNumber')} value={modalFormData.orderNumber || ''} onChange={handleModalInputChange} className={inputCls('orderNumber')} />
+                          </div>
+                        )}
+                        {fv('entryLeads') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Entry Leads</label>
+                            <input name="entryLeads" list="entryLeadsList" readOnly={!fe('entryLeads')} value={modalFormData.entryLeads || ''} onChange={handleModalInputChange} className={inputCls('entryLeads')} />
+                          </div>
+                        )}
+                        {fv('date') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Date</label>
+                            <input type="date" name="date" readOnly={!fe('date')} value={modalFormData.date || ''} onChange={handleModalInputChange} className={inputCls('date')} />
+                          </div>
+                        )}
+                        {fv('teleCallingStaff') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Calling Staff</label>
+                            <input name="teleCallingStaff" list="staffList" readOnly={!fe('teleCallingStaff')} value={modalFormData.teleCallingStaff || ''} onChange={handleModalInputChange} className={inputCls('teleCallingStaff')} />
+                          </div>
+                        )}
+                        {fv('technicalStaff') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Staff</label>
+                            <input name="technicalStaff" list="staffList" readOnly={!fe('technicalStaff')} value={modalFormData.technicalStaff || ''} onChange={handleModalInputChange} className={inputCls('technicalStaff')} />
+                          </div>
+                        )}
+                        {fv('customerContactNumber') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Phone</label>
+                            <input name="customerContactNumber" readOnly={!fe('customerContactNumber')} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className={inputCls('customerContactNumber')} />
+                          </div>
+                        )}
+                        {fv('customerName') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Name</label>
+                            <input name="customerName" readOnly={!fe('customerName')} value={modalFormData.customerName || ''} onChange={handleModalInputChange} className={inputCls('customerName')} />
+                          </div>
+                        )}
+                        {fv('customerRequirement') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Requirement</label>
+                            <input name="customerRequirement" list="serviceTypesList" readOnly={!fe('customerRequirement')} value={modalFormData.customerRequirement || ''} onChange={handleModalInputChange} className={inputCls('customerRequirement')} />
+                          </div>
+                        )}
+                        {fv('currentStatus') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Current Status</label>
+                            <input name="currentStatus" list="statusesList" readOnly={!fe('currentStatus')} value={modalFormData.currentStatus || ''} onChange={handleModalInputChange} className={inputCls('currentStatus')} />
+                          </div>
+                        )}
 
-                      {/* Fields only visible for CTN_TO_REMARKS roles */}
-                      {fv('detailsNotes') && (
-                        <div className="space-y-1.5 col-span-2">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Details & Notes</label>
-                          <textarea name="detailsNotes" readOnly={!fe('detailsNotes')} value={modalFormData.detailsNotes || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('detailsNotes'), 'resize-none')} />
-                        </div>
-                      )}
-                      {fv('claimApplyDate') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Claim Apply Date</label>
-                          <input type="date" name="claimApplyDate" readOnly={!fe('claimApplyDate')} value={modalFormData.claimApplyDate || ''} onChange={handleModalInputChange} className={inputCls('claimApplyDate')} />
-                        </div>
-                      )}
-                      {fv('followUpDate') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Follow Up Date</label>
-                          <input type="date" name="followUpDate" readOnly={!fe('followUpDate')} value={modalFormData.followUpDate || ''} onChange={handleModalInputChange} className={inputCls('followUpDate')} />
-                        </div>
-                      )}
-                      {fv('pdfFileSend') && (
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PDF File Send</label>
-                          <input name="pdfFileSend" readOnly={!fe('pdfFileSend')} value={modalFormData.pdfFileSend || ''} onChange={handleModalInputChange} className={inputCls('pdfFileSend')} />
-                        </div>
-                      )}
-                      {fv('remarks') && (
-                        <div className="space-y-1.5 col-span-2">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Remarks</label>
-                          <textarea name="remarks" readOnly={!fe('remarks')} value={modalFormData.remarks || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('remarks'), 'resize-none')} />
-                        </div>
-                      )}
-                    </div>
-                  </section>
+                        {/* Fields only visible for CTN_TO_REMARKS roles */}
+                        {fv('detailsNotes') && (
+                          <div className="space-y-1.5 col-span-2">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Details & Notes</label>
+                            <textarea name="detailsNotes" readOnly={!fe('detailsNotes')} value={modalFormData.detailsNotes || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('detailsNotes'), 'resize-none')} />
+                          </div>
+                        )}
+                        {fv('claimApplyDate') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Claim Apply Date</label>
+                            <input type="date" name="claimApplyDate" readOnly={!fe('claimApplyDate')} value={modalFormData.claimApplyDate || ''} onChange={handleModalInputChange} className={inputCls('claimApplyDate')} />
+                          </div>
+                        )}
+                        {fv('followUpDate') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Follow Up Date</label>
+                            <input type="date" name="followUpDate" readOnly={!fe('followUpDate')} value={modalFormData.followUpDate || ''} onChange={handleModalInputChange} className={inputCls('followUpDate')} />
+                          </div>
+                        )}
+                        {fv('pdfFileSend') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PDF File Send</label>
+                            <input name="pdfFileSend" readOnly={!fe('pdfFileSend')} value={modalFormData.pdfFileSend || ''} onChange={handleModalInputChange} className={inputCls('pdfFileSend')} />
+                          </div>
+                        )}
+                        {fv('remarks') && (
+                          <div className="space-y-1.5 col-span-2">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Remarks</label>
+                            <textarea name="remarks" readOnly={!fe('remarks')} value={modalFormData.remarks || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('remarks'), 'resize-none')} />
+                          </div>
+                        )}
+                      </div>
+                    </section>
                   )}
 
                   {/* ── Section 2: Salary / Payment ── */}

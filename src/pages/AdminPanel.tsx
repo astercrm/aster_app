@@ -74,7 +74,6 @@ export default function AdminPanel() {
         const msg = payload?.message || `Server error: ${res.status}`;
         throw new Error(msg);
       }
-      const payload = await api.getAttendance(from, to);
       if (!Array.isArray(payload)) throw new Error('Invalid response from server');
       // Normalize: Supabase may return full ISO timestamps for DATE columns.
       // Slice to YYYY-MM-DD so Set lookups work correctly.
@@ -93,6 +92,7 @@ export default function AdminPanel() {
   };
 
 
+
   const fetchActivity = async () => {
     setActLoading(true);
     setActError(null);
@@ -104,9 +104,8 @@ export default function AdminPanel() {
         const msg = payload?.message || `Server error: ${res.status}`;
         throw new Error(msg);
       }
-      const payload = await api.getActivity();
       if (!Array.isArray(payload)) throw new Error('Invalid response from server');
-      setActivity(payload);
+      // Filter out heartbeat noise — only show meaningful actions
       setActivity(payload.filter((row: any) => row.action !== 'heartbeat'));
     } catch (e: any) {
       console.error('Activity fetch error:', e);
@@ -116,6 +115,7 @@ export default function AdminPanel() {
       setActLoading(false);
     }
   };
+
 
 
   // ── Users helpers ─────────────────────────────────────────────────────────
@@ -213,12 +213,11 @@ export default function AdminPanel() {
   const dayNums = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const changeAttMonth = (delta: number) => {
-    const d = new Date(`${attMonth}-01`);
-    d.setMonth(d.getMonth() + delta);
     const [y, m] = attMonth.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
     setAttMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
+
 
   // ── Activity helpers ──────────────────────────────────────────────────────
   const activityPages = Math.ceil(activity.length / ACT_PER_PAGE);
@@ -436,9 +435,9 @@ export default function AdminPanel() {
               <ChevronLeft size={18} className="text-gray-500 dark:text-slate-400" />
             </button>
             <span className="text-lg font-bold text-gray-900 dark:text-white min-w-[160px] text-center">
-              {new Date(`${attMonth}-01`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
               {new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </span>
+
             <button onClick={() => changeAttMonth(1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
               <ChevronRight size={18} className="text-gray-500 dark:text-slate-400" />
             </button>
@@ -736,4 +735,3 @@ export default function AdminPanel() {
     </div>
   );
 }
-                <button onClick={handleDeleteUser} className="flex-1 px-4 py-2.5 bg-r
