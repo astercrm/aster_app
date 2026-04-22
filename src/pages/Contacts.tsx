@@ -621,7 +621,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       {/* Desktop Table */}
       <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[3000px]">
+          <table className="w-full text-left min-w-[5000px]">
             <thead>
               <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
                 {userRole === 'Admin' && (
@@ -631,23 +631,40 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                 )}
                 <th className="px-6 py-4 sticky left-10 z-20 bg-gray-50 dark:bg-slate-800">CTN</th>
                 <th className="px-6 py-4">ORDER NUMBER</th>
+                {fv('entryLeads') && <th className="px-6 py-4">ENTRY LEADS</th>}
                 <th className="px-6 py-4">DATE</th>
                 <th className="px-6 py-4">CUSTOMER NAME</th>
                 <th className="px-6 py-4">PHONE</th>
                 <th className="px-6 py-4">REQUIREMENT</th>
                 <th className="px-6 py-4">CURRENT STATUS</th>
+                {fv('detailsNotes') && <th className="px-6 py-4">DETAILS / NOTES</th>}
                 <th className="px-6 py-4">TELE STAFF</th>
                 <th className="px-6 py-4">TECH STAFF</th>
+                {fv('claimApplyDate') && <th className="px-6 py-4 whitespace-nowrap">CLAIM DATE</th>}
+                {fv('followUpDate') && <th className="px-6 py-4 whitespace-nowrap">FOLLOW UP</th>}
+                {fv('serviceCharges') && <th className="px-6 py-4">SERVICE CHARGES</th>}
                 {fv('receiveAmount') && <th className="px-6 py-4">RECEIVED</th>}
                 {fv('paymentStatus') && <th className="px-6 py-4">PAYMENT</th>}
+                {fv('pdfFileSend') && <th className="px-6 py-4">PDF SEND</th>}
+                {fv('transactionId') && <th className="px-6 py-4">TRANSACTION ID</th>}
+                {fv('receiveDate') && <th className="px-6 py-4 whitespace-nowrap">RECEIVE DATE</th>}
+                {fv('remarks') && <th className="px-6 py-4">REMARKS</th>}
                 {fv('technicalSharePercent') && <th className="px-6 py-4">TECH SHARE</th>}
+                {fv('technicalSalaryAmount') && <th className="px-6 py-4">TECH SALARY</th>}
+                {fv('technicalPaidDate') && <th className="px-6 py-4 whitespace-nowrap">TECH PAID DATE</th>}
+                {fv('technicalRemarks') && <th className="px-6 py-4">TECH REMARKS</th>}
+                {fv('technicalTotalAmount') && <th className="px-6 py-4">TECH TOTAL</th>}
                 {fv('teleCallingSharePercent') && <th className="px-6 py-4">TELE SHARE</th>}
+                {fv('teleCallingSalaryAmount') && <th className="px-6 py-4">TELE SALARY</th>}
+                {fv('teleCallingPaidDate') && <th className="px-6 py-4 whitespace-nowrap">TELE PAID DATE</th>}
+                {fv('teleCallingRemarks') && <th className="px-6 py-4">TELE REMARKS</th>}
+                {fv('teleTotalAmount') && <th className="px-6 py-4">TELE TOTAL</th>}
                 <th className="px-6 py-4 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
               {paginatedContacts.length === 0 ? (
-                <tr><td colSpan={15} className="px-6 py-16 text-center text-gray-400 text-sm">No contacts found.</td></tr>
+                <tr><td colSpan={40} className="px-6 py-16 text-center text-gray-400 text-sm">No contacts found.</td></tr>
               ) : paginatedContacts.map(contact => (
                 <tr key={contact.id} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors text-sm">
                   {userRole === 'Admin' && (
@@ -657,6 +674,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   )}
                   <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-slate-400 sticky left-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">{contact.ctn || '—'}</td>
                   <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
+                  {fv('entryLeads') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.entryLeads || '—'}</td>}
                   <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
                   <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.customerName || '—'}</td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.customerContactNumber || '—'}</td>
@@ -668,12 +686,28 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                           "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     )}>{contact.currentStatus || '—'}</span>
                   </td>
+                  {fv('detailsNotes') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[180px] truncate">{contact.detailsNotes || '—'}</td>}
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalStaff || '—'}</td>
+                  {fv('claimApplyDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.claimApplyDate || '—'}</td>}
+                  {fv('followUpDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.followUpDate || '—'}</td>}
+                  {fv('serviceCharges') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.serviceCharges ? `₹${contact.serviceCharges}` : '—'}</td>}
                   {fv('receiveAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.receiveAmount ? `₹${contact.receiveAmount}` : '—'}</td>}
                   {fv('paymentStatus') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.paymentStatus || '—'}</td>}
+                  {fv('pdfFileSend') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.pdfFileSend || '—'}</td>}
+                  {fv('transactionId') && <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-slate-400">{contact.transactionId || '—'}</td>}
+                  {fv('receiveDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.receiveDate || '—'}</td>}
+                  {fv('remarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.remarks || '—'}</td>}
                   {fv('technicalSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalSharePercent ? `${contact.technicalSharePercent}%` : '—'}</td>}
+                  {fv('technicalSalaryAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.technicalSalaryAmount ? `₹${contact.technicalSalaryAmount}` : '—'}</td>}
+                  {fv('technicalPaidDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.technicalPaidDate || '—'}</td>}
+                  {fv('technicalRemarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.technicalRemarks || '—'}</td>}
+                  {fv('technicalTotalAmount') && <td className="px-6 py-4 font-bold text-primary">{contact.technicalTotalAmount ? `₹${contact.technicalTotalAmount}` : '—'}</td>}
                   {fv('teleCallingSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingSharePercent ? `${contact.teleCallingSharePercent}%` : '—'}</td>}
+                  {fv('teleCallingSalaryAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.teleCallingSalaryAmount ? `₹${contact.teleCallingSalaryAmount}` : '—'}</td>}
+                  {fv('teleCallingPaidDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.teleCallingPaidDate || '—'}</td>}
+                  {fv('teleCallingRemarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.teleCallingRemarks || '—'}</td>}
+                  {fv('teleTotalAmount') && <td className="px-6 py-4 font-bold text-primary">{contact.teleTotalAmount ? `₹${contact.teleTotalAmount}` : '—'}</td>}
                   <td className="px-6 py-4 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {perms.canToggleFavorite && (
@@ -701,6 +735,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
             </tbody>
           </table>
         </div>
+
 
         {/* Pagination */}
         {totalPages > 1 && (
