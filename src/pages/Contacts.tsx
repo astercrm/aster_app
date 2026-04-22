@@ -70,6 +70,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [newDropdownItem, setNewDropdownItem] = useState('');
   // Duplicate warning state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  // Transaction ID inline duplicate error
+  const [txnIdError, setTxnIdError] = useState<string | null>(null);
 
   // Editable dropdown lists
   const loadList = (key: string, fallback: string[]) => {
@@ -138,6 +140,29 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     });
   };
 
+  // Real-time Transaction ID duplicate check against already-loaded contacts
+  const handleTxnIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    // Run the normal input handler first
+    setModalFormData(prev => ({ ...prev, transactionId: value }));
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setTxnIdError(null);
+      return;
+    }
+    // Find a contact with the same transaction ID, ignoring the one currently being edited
+    const duplicate = contacts.find(
+      c => (c.transactionId || '').trim().toLowerCase() === trimmed.toLowerCase()
+        && c.id !== editingContact?.id
+    );
+    if (duplicate) {
+      setTxnIdError(`Transaction ID "${trimmed}" is already used by "${duplicate.customerName || 'another contact'}".`);
+    } else {
+      setTxnIdError(null);
+    }
+  };
+
+
   const getCellValue = (colNames: string[], row: any[], headers: string[], occurrence = 1) => {
     let count = 0;
     const colIndex = headers.findIndex((h: string) => {
@@ -170,6 +195,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const handleAddContact = () => {
     setEditingContact(null);
     setDuplicateWarning(null);
+    setTxnIdError(null);
     setModalFormData({
       entryLeads: 'New',
       currentStatus: 'New',
@@ -190,7 +216,9 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setEditingContact(contact);
     setViewingContact(null);
     setDuplicateWarning(null);
+    setTxnIdError(null);
     setModalFormData({
+
       ...contact,
       date: toInputDate(contact.date),
       claimApplyDate: toInputDate(contact.claimApplyDate),
@@ -198,11 +226,9 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       receiveDate: toInputDate(contact.receiveDate),
       technicalPaidDate: toInputDate(contact.technicalPaidDate),
       teleCallingPaidDate: toInputDate(contact.teleCallingPaidDate),
-      transactionId: '', // Always blank — user must enter a fresh Transaction ID each time
     });
     setIsModalOpen(true);
   };
-
 
   const handleViewContact = (contact: Contact) => {
     setViewingContact(contact);
@@ -461,7 +487,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     // Prevent duplicate submission from rapid double-clicks
     if (isSubmitting) return;
     setDuplicateWarning(null);
+    // Block save if Transaction ID is a duplicate
+    if (txnIdError) return;
     setIsSubmitting(true);
+
 
     const contactData: Partial<Contact> = {
       ...modalFormData,
@@ -502,7 +531,9 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         }
         triggerToast('Lead created successfully');
       }
+      setCurrentPage(1);
       setIsModalOpen(false);
+      setTxnIdError(null);
     } catch (error: any) {
       console.error('Failed to save contact:', error);
       // Handle duplicate detection (409 from server)
@@ -960,15 +991,17 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                             name="transactionId"
                             readOnly={!fe('transactionId')}
                             value={modalFormData.transactionId || ''}
-                            onChange={handleModalInputChange}
-                            className={inputCls('transactionId')}
-                            autoComplete="off"
-                            autoCorrect="off"
-                            spellCheck={false}
-                            placeholder="Enter new Transaction ID"
+                            onChange={handleTxnIdChange}
+                            className={txnIdError ? 'w-full rounded-xl px-3 py-2 text-sm border-2 border-red-400 bg-red-50 dark:bg-red-900/20 outline-none text-red-700 dark:text-red-300' : inputCls('transactionId')}
+                            placeholder="e.g. TXN123456"
                           />
-
+                          {txnIdError && (
+                            <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                              <span>⚠</span> {txnIdError}
+                            </p>
+                          )}
                         </div>
+
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Date</label>
                           <input type="date" name="receiveDate" readOnly={!fe('receiveDate')} value={modalFormData.receiveDate || ''} onChange={handleModalInputChange} className={inputCls('receiveDate')} />

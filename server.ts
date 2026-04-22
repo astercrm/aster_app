@@ -198,57 +198,28 @@ async function startServer() {
     }
 
     // ── LOG LOGIN ACTIVITY ────────────────────────────────────────────────────
-    try {
-      await supabase.from('user_activity').insert({
-        user_id: String(data.id),
+    await supabase.from('user_activity').insert({
+      user_id: data.id,
+      user_name: data.name,
+      user_email: data.email,
+      action: 'login',
+      details: 'User logged in',
+    });
+
+    // ── ATTENDANCE: mark one record per calendar day (upsert = safe against races) ──
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    await supabase.from('attendance').upsert(
+      {
+        user_id: data.id,
         user_name: data.name,
         user_email: data.email,
-        action: 'login',
-        details: 'User logged in',
-      });
-    } catch (actErr: any) {
-      console.error('⚠️  Activity log insert failed:', actErr.message);
-    }
-
-    // ── ATTENDANCE: one record per calendar day ───────────────────────────────
-    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    try {
-      // Use String(data.id) so this works whether app_users.id is uuid OR bigint
-      const { error: attErr } = await supabase.from('attendance').upsert(
-        {
-          user_id: String(data.id),
-          user_name: data.name,
-          user_email: data.email,
-          date: todayStr,
-          login_time: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,date', ignoreDuplicates: true }
-      );
-
-      if (attErr) {
-        console.error('⚠️  Attendance upsert failed:', attErr.message, '| code:', attErr.code);
-        // Fallback: plain insert — ignore conflict if duplicate day
-        const { error: insErr } = await supabase.from('attendance').insert({
-          user_id: String(data.id),
-          user_name: data.name,
-          user_email: data.email,
-          date: todayStr,
-          login_time: new Date().toISOString(),
-        });
-        if (insErr && insErr.code !== '23505') { // 23505 = unique_violation (already recorded today)
-          console.error('⚠️  Attendance fallback insert also failed:', insErr.message);
-        } else {
-          console.log(`✅ Attendance recorded (fallback) for ${data.email} on ${todayStr}`);
-        }
-      } else {
-        console.log(`✅ Attendance recorded for ${data.email} on ${todayStr}`);
-      }
-    } catch (attCatchErr: any) {
-      console.error('🚨 Attendance insert threw an exception:', attCatchErr.message);
-    }
+        date: todayStr,
+        login_time: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,date', ignoreDuplicates: true }
+    );
 
     res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
-
   });
 
   app.post('/api/auth/signup', async (req, res) => {
@@ -602,15 +573,70 @@ async function startServer() {
   });
 
   app.put('/api/contacts/:id', async (req, res) => {
+    const contact = req.body;
+    const contactId = req.params.id;
+
+    // ── Duplicate checks (exclude the contact being edited) ──────────
+
+    // CTN duplicate check
+    if (contact.ctn && contact.ctn.trim() !== '') {
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id, customer_name')
+        .eq('ctn', contact.ctn.trim())
+        .neq('id', contactId)
+        .maybeSingle();
+      if (existing) {
+        return res.status(409).json({
+          message: `Duplicate CTN: "${contact.ctn}" already exists for "${existing.customer_name}".`,
+          duplicate: true,
+        });
+      }
+    }
+
+    // Phone duplicate check
+    if (contact.customerContactNumber && contact.customerContactNumber.trim() !== '') {
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id, customer_name')
+        .eq('customer_contact_number', contact.customerContactNumber.trim())
+        .neq('id', contactId)
+        .maybeSingle();
+      if (existing) {
+        return res.status(409).json({
+          message: `Duplicate phone: "${contact.customerContactNumber}" already exists for "${existing.customer_name}".`,
+          duplicate: true,
+        });
+      }
+    }
+
+    // Transaction ID duplicate check
+    if (contact.transactionId && contact.transactionId.trim() !== '') {
+      const { data: existing } = await supabase
+        .from('contacts')
+        .select('id, customer_name')
+        .eq('transaction_id', contact.transactionId.trim())
+        .neq('id', contactId)
+        .maybeSingle();
+      if (existing) {
+        return res.status(409).json({
+          message: `Duplicate Transaction ID: "${contact.transactionId}" already exists for "${existing.customer_name}".`,
+          duplicate: true,
+        });
+      }
+    }
+
+    // ── Perform the update ───────────────────────────────────────────
     const { data, error } = await supabase
       .from('contacts')
-      .update(toDB(req.body))
-      .eq('id', req.params.id)
+      .update(toDB(contact))
+      .eq('id', contactId)
       .select()
       .single();
     if (error) return res.status(500).json({ message: error.message });
     res.json(toContact(data));
   });
+
 
   app.patch('/api/contacts/:id/favorite', async (req, res) => {
     const { data, error } = await supabase
@@ -768,56 +794,18 @@ async function startServer() {
     const { userId, userName, userEmail, action, details } = req.body;
     if (!userId || !action) return res.status(400).json({ message: 'Missing fields' });
     const { error } = await supabase.from('user_activity').insert({
-      user_id: String(userId),
+      user_id: userId,
       user_name: userName,
       user_email: userEmail,
       action,
       details: details || '',
     });
     if (error) {
-      console.error('⚠️  user_activity insert failed:', error.message, '| code:', error.code);
-      if (error.message.includes('row-level security')) console.error('👉 Disable RLS on the user_activity table in Supabase!');
+      if (error.message.includes('row-level security')) console.error('\n🚨 Supabase RLS Error:', error.message, '\n👉 NOTE: You need to disable RLS on the "user_activity" table in Supabase!\n');
       return res.status(500).json({ message: error.message });
     }
     res.json({ success: true });
   });
-
-  // Mark attendance (called from frontend after login to ensure record exists)
-  app.post('/api/attendance', async (req, res) => {
-    const { userId, userName, userEmail } = req.body;
-    if (!userId) return res.status(400).json({ message: 'userId is required' });
-    const todayStr = new Date().toISOString().slice(0, 10);
-    // Try upsert first
-    const { error: upsertErr } = await supabase.from('attendance').upsert(
-      {
-        user_id: String(userId),
-        user_name: userName || '',
-        user_email: userEmail || '',
-        date: todayStr,
-        login_time: new Date().toISOString(),
-      },
-      { onConflict: 'user_id,date', ignoreDuplicates: true }
-    );
-    if (upsertErr) {
-      console.error('⚠️  Attendance upsert failed:', upsertErr.message, '| code:', upsertErr.code);
-      // Fallback: plain insert, ignoring duplicate-day conflict
-      const { error: insErr } = await supabase.from('attendance').insert({
-        user_id: String(userId),
-        user_name: userName || '',
-        user_email: userEmail || '',
-        date: todayStr,
-        login_time: new Date().toISOString(),
-      });
-      if (insErr && insErr.code !== '23505') {
-        console.error('⚠️  Attendance fallback insert failed:', insErr.message);
-        return res.status(500).json({ message: insErr.message });
-      }
-    }
-    console.log(`✅ Attendance marked via API for user ${userId} on ${todayStr}`);
-    res.json({ success: true, date: todayStr });
-  });
-
-
 
   // Get all activity (admin only)
   app.get('/api/activity', async (req, res) => {
