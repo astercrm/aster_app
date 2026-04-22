@@ -63,6 +63,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [modalFormData, setModalFormData] = useState<Partial<Contact>>({});
   const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [isUploadingScreenshot, setIsUploadingScreenshot] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
   const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'staff' | 'branches' | 'paymentStatuses'>('serviceTypes');
@@ -362,9 +363,17 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         }
 
         if (newContacts.length > 0) {
-          const createdContacts = await api.bulkCreateContacts(newContacts);
+          const result = await api.bulkCreateContacts(newContacts);
+          // Server now returns { contacts, inserted, skipped, message }
+          // but for safety fall back to treating result as an array (legacy)
+          const createdContacts = Array.isArray(result) ? result : (result as any).contacts ?? [];
+          const skipped = Array.isArray(result) ? 0 : (result as any).skipped ?? 0;
+          const serverMsg = Array.isArray(result) ? null : (result as any).message ?? null;
           setContacts(prev => [...createdContacts, ...prev]);
-          triggerToast(`Successfully imported ${createdContacts.length} contacts!`);
+          triggerToast(serverMsg || (skipped > 0
+            ? `Imported ${createdContacts.length} contacts. Skipped ${skipped} duplicate(s).`
+            : `Successfully imported ${createdContacts.length} contacts!`
+          ));
         } else {
           triggerToast('No valid contacts found in file.', 'error');
         }
@@ -447,7 +456,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
   const handleSaveContact = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Prevent duplicate submission from rapid double-clicks
+    if (isSubmitting) return;
     setDuplicateWarning(null);
+    setIsSubmitting(true);
 
     const contactData: Partial<Contact> = {
       ...modalFormData,
@@ -497,6 +509,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       } else {
         triggerToast(error.message || 'Failed to save contact', 'error');
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1015,8 +1029,13 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     {viewingContact ? 'Close' : 'Cancel'}
                   </button>
                   {!viewingContact && (
-                    <button type="submit" className="flex-1 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-                      {editingContact ? 'Update Contact' : 'Create Lead'}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 py-3 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                      {isSubmitting ? 'Saving...' : editingContact ? 'Update Contact' : 'Create Lead'}
                     </button>
                   )}
                 </div>

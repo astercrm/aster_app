@@ -34,7 +34,7 @@ export const api = {
   createContact: (contact: Partial<Contact>) => request<Contact>('/contacts', { method: 'POST', body: JSON.stringify(contact) }),
   updateContact: (id: string, contact: Partial<Contact>) => request<Contact>(`/contacts/${id}`, { method: 'PUT', body: JSON.stringify(contact) }),
   deleteContact: (id: string) => request<void>(`/contacts/${id}`, { method: 'DELETE' }),
-  bulkCreateContacts: (contacts: Partial<Contact>[]) => request<Contact[]>('/contacts/bulk', { method: 'POST', body: JSON.stringify(contacts) }),
+  bulkCreateContacts: (contacts: Partial<Contact>[]) => request<any>('/contacts/bulk', { method: 'POST', body: JSON.stringify(contacts) }),
   bulkDeleteContacts: (ids: string[]) => request<void>('/contacts/bulk', { method: 'DELETE', body: JSON.stringify({ ids }) }),
   toggleFavorite: (id: string, isFavorite: boolean) => request<Contact>(`/contacts/${id}/favorite`, { method: 'PATCH', body: JSON.stringify({ isFavorite }) }),
 

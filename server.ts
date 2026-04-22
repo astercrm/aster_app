@@ -413,12 +413,81 @@ async function startServer() {
   });
 
   app.post('/api/contacts/bulk', async (req, res) => {
-    const contacts = req.body;
-    const rows = contacts.map(toDB);
+    const contacts = req.body as any[];
+    if (!contacts || contacts.length === 0) {
+      return res.status(400).json({ message: 'No contacts provided.' });
+    }
+
+    // Collect unique non-empty CTNs and phone numbers from the incoming batch
+    const incomingCtns = [...new Set(contacts.map(c => (c.ctn || '').trim()).filter(Boolean))];
+    const incomingPhones = [...new Set(contacts.map(c => (c.customerContactNumber || '').trim()).filter(Boolean))];
+
+    // Fetch existing records that match any of the incoming CTNs or phone numbers
+    const existingCtns = new Set<string>();
+    const existingPhones = new Set<string>();
+
+    if (incomingCtns.length > 0) {
+      const { data: ctnRows } = await supabase
+        .from('contacts')
+        .select('ctn')
+        .in('ctn', incomingCtns);
+      (ctnRows || []).forEach((r: any) => r.ctn && existingCtns.add(r.ctn.trim()));
+    }
+
+    if (incomingPhones.length > 0) {
+      const { data: phoneRows } = await supabase
+        .from('contacts')
+        .select('customer_contact_number')
+        .in('customer_contact_number', incomingPhones);
+      (phoneRows || []).forEach((r: any) => r.customer_contact_number && existingPhones.add(r.customer_contact_number.trim()));
+    }
+
+    // Separate new from duplicate rows
+    const newContacts: any[] = [];
+    const skippedCount = { ctn: 0, phone: 0 };
+
+    for (const c of contacts) {
+      const ctn = (c.ctn || '').trim();
+      const phone = (c.customerContactNumber || '').trim();
+
+      if (ctn && existingCtns.has(ctn)) {
+        skippedCount.ctn++;
+        continue;
+      }
+      if (phone && existingPhones.has(phone)) {
+        skippedCount.phone++;
+        continue;
+      }
+
+      newContacts.push(c);
+    }
+
+    if (newContacts.length === 0) {
+      return res.status(409).json({
+        message: `All ${contacts.length} contacts already exist (${skippedCount.ctn} duplicate CTN, ${skippedCount.phone} duplicate phone). Nothing was imported.`,
+        duplicate: true,
+        inserted: 0,
+        skipped: contacts.length,
+      });
+    }
+
+    const rows = newContacts.map(toDB);
     const { data, error } = await supabase.from('contacts').insert(rows).select();
     if (error) return res.status(500).json({ message: error.message });
-    res.json((data || []).map(toContact));
+
+    const total = contacts.length;
+    const skipped = total - newContacts.length;
+
+    res.json({
+      contacts: (data || []).map(toContact),
+      inserted: newContacts.length,
+      skipped,
+      message: skipped > 0
+        ? `Imported ${newContacts.length} new contacts. Skipped ${skipped} duplicate(s).`
+        : `Imported ${newContacts.length} contacts successfully.`,
+    });
   });
+
 
   app.delete('/api/contacts/bulk', async (req, res) => {
     const { ids } = req.body;
