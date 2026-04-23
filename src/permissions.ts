@@ -99,7 +99,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessAdmin: false,
   },
 
-  // Technical: CTN → Remarks (create/edit/view) + Salary Amount (view) + Technical Share (view)
+  // Technical: CTN → Remarks + Salary/Payment fields (create/edit/view) + Technical Share (view only)
   Technical: {
     canViewContacts: true,
     canCreateContact: true,
@@ -109,7 +109,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canExport: false,
     canToggleFavorite: false,
     visibleFields: ['ctn_to_remarks', 'salary_amount', 'technical_share', 'screenshot'],
-    editableFields: ['ctn_to_remarks', 'screenshot'], // salary_amount & technical_share are view-only
+    editableFields: ['ctn_to_remarks', 'salary_amount', 'screenshot'], // technical_share is view-only
     canAccessAdmin: false,
   },
 
@@ -122,8 +122,8 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canBulkUpload: false,
     canExport: false,
     canToggleFavorite: false,
-    visibleFields: ['ctn_to_current_status', 'salary_amount', 'telecalling_share', 'screenshot'],
-    editableFields: ['ctn_to_current_status', 'screenshot'], // salary_amount & telecalling_share are view-only
+    visibleFields: ['ctn_to_current_status', 'salary_amount', 'telecalling_share'],
+    editableFields: ['ctn_to_current_status'], // salary_amount & telecalling_share are view-only
     canAccessAdmin: false,
   },
 };

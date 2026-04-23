@@ -72,6 +72,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   // Transaction ID inline duplicate error
   const [txnIdError, setTxnIdError] = useState<string | null>(null);
+  // CTN inline duplicate error
+  const [ctnError, setCtnError] = useState<string | null>(null);
 
   // Editable dropdown lists
   const loadList = (key: string, fallback: string[]) => {
@@ -140,6 +142,26 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     });
   };
 
+  // Real-time CTN duplicate check against already-loaded contacts
+  const handleCtnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setModalFormData(prev => ({ ...prev, ctn: value }));
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setCtnError(null);
+      return;
+    }
+    const duplicate = contacts.find(
+      c => (c.ctn || '').trim().toLowerCase() === trimmed.toLowerCase()
+        && c.id !== editingContact?.id
+    );
+    if (duplicate) {
+      setCtnError(`CTN "${trimmed}" is already used by "${duplicate.customerName || 'another contact'}".`);
+    } else {
+      setCtnError(null);
+    }
+  };
+
   // Real-time Transaction ID duplicate check against already-loaded contacts
   const handleTxnIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -196,6 +218,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setEditingContact(null);
     setDuplicateWarning(null);
     setTxnIdError(null);
+    setCtnError(null);
     setModalFormData({
       entryLeads: 'New',
       currentStatus: 'New',
@@ -217,6 +240,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setViewingContact(null);
     setDuplicateWarning(null);
     setTxnIdError(null);
+    setCtnError(null);
     setModalFormData({
 
       ...contact,
@@ -487,6 +511,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     // Prevent duplicate submission from rapid double-clicks
     if (isSubmitting) return;
     setDuplicateWarning(null);
+    // Block save if CTN is a duplicate
+    if (ctnError) return;
     // Block save if Transaction ID is a duplicate
     if (txnIdError) return;
     setIsSubmitting(true);
@@ -534,6 +560,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       setCurrentPage(1);
       setIsModalOpen(false);
       setTxnIdError(null);
+      setCtnError(null);
     } catch (error: any) {
       console.error('Failed to save contact:', error);
       // Handle duplicate detection (409 from server)
@@ -871,7 +898,19 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         {fv('ctn') && (
                           <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">CTN</label>
-                            <input name="ctn" readOnly={!fe('ctn')} value={modalFormData.ctn || ''} onChange={handleModalInputChange} className={inputCls('ctn')} />
+                            <input
+                              name="ctn"
+                              readOnly={!fe('ctn')}
+                              value={modalFormData.ctn || ''}
+                              onChange={handleCtnChange}
+                              className={ctnError ? 'w-full rounded-xl px-3 py-2 text-sm border-2 border-red-400 bg-red-50 dark:bg-red-900/20 outline-none text-red-700 dark:text-red-300' : inputCls('ctn')}
+                              placeholder="e.g. PT 26 0651"
+                            />
+                            {ctnError && (
+                              <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                                <span>⚠</span> {ctnError}
+                              </p>
+                            )}
                           </div>
                         )}
                         {fv('orderNumber') && (

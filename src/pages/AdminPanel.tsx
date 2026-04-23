@@ -92,7 +92,6 @@ export default function AdminPanel() {
   };
 
 
-
   const fetchActivity = async () => {
     setActLoading(true);
     setActError(null);
@@ -105,8 +104,7 @@ export default function AdminPanel() {
         throw new Error(msg);
       }
       if (!Array.isArray(payload)) throw new Error('Invalid response from server');
-      // Filter out heartbeat noise — only show meaningful actions
-      setActivity(payload.filter((row: any) => row.action !== 'heartbeat'));
+      setActivity(payload);
     } catch (e: any) {
       console.error('Activity fetch error:', e);
       setActError(e.message || 'Failed to load activity log.');
@@ -115,7 +113,6 @@ export default function AdminPanel() {
       setActLoading(false);
     }
   };
-
 
 
   // ── Users helpers ─────────────────────────────────────────────────────────
@@ -213,11 +210,10 @@ export default function AdminPanel() {
   const dayNums = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const changeAttMonth = (delta: number) => {
-    const [y, m] = attMonth.split('-').map(Number);
-    const d = new Date(y, m - 1 + delta, 1);
+    const d = new Date(`${attMonth}-01`);
+    d.setMonth(d.getMonth() + delta);
     setAttMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   };
-
 
   // ── Activity helpers ──────────────────────────────────────────────────────
   const activityPages = Math.ceil(activity.length / ACT_PER_PAGE);
@@ -339,11 +335,11 @@ export default function AdminPanel() {
                 </div>
                 <div>
                   <span className={cn('font-bold px-2 py-0.5 rounded-full', ROLE_BADGE_COLORS['Technical'])}>Technical</span>
-                  <p className="mt-1">Create/Edit/View: CTN→Remarks. View: Salary, Technical Share.</p>
+                  <p className="mt-1">Create/Edit/View: CTN→Remarks + Payment fields. View-only: Technical Share % &amp; Salary calculated fields.</p>
                 </div>
                 <div>
                   <span className={cn('font-bold px-2 py-0.5 rounded-full', ROLE_BADGE_COLORS['TeleCalling'])}>TeleCalling</span>
-                  <p className="mt-1">Create/Edit/View: CTN→Status. View: Salary, TeleCalling Share.</p>
+                  <p className="mt-1">Create/Edit/View: CTN→Current Status. View-only: Salary Amount &amp; TeleCalling Share.</p>
                 </div>
               </div>
             </div>
@@ -435,9 +431,8 @@ export default function AdminPanel() {
               <ChevronLeft size={18} className="text-gray-500 dark:text-slate-400" />
             </button>
             <span className="text-lg font-bold text-gray-900 dark:text-white min-w-[160px] text-center">
-              {new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+              {new Date(`${attMonth}-01`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
             </span>
-
             <button onClick={() => changeAttMonth(1)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
               <ChevronRight size={18} className="text-gray-500 dark:text-slate-400" />
             </button>
@@ -689,7 +684,7 @@ export default function AdminPanel() {
                 <div className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs text-gray-500 dark:text-slate-400">
                   {formData.role === 'Admin' && 'Full access to all features including admin panel.'}
                   {formData.role === 'User' && 'Can create, edit, view all contact fields. Cannot delete.'}
-                  {formData.role === 'Technical' && 'Can create/edit/view CTN→Remarks fields. View-only: Salary Amount & Technical Share.'}
+                  {formData.role === 'Technical' && 'Can create/edit/view CTN→Remarks + Service Charges, Payment, Received Amount, Transaction ID fields. View-only: Technical Share & Salary Amount calculated fields.'}
                   {formData.role === 'TeleCalling' && 'Can create/edit/view CTN→Current Status fields. View-only: Salary Amount & TeleCalling Share.'}
                 </div>
               </div>
