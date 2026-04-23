@@ -685,21 +685,23 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
             <thead>
               <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
                 {userRole === 'Admin' && (
-                  <th className="px-6 py-4 w-10 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
+                  <th className="px-4 py-4 w-12 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
                     <input type="checkbox" checked={paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))} onChange={handleSelectAll} className="rounded border-gray-300 text-primary focus:ring-primary" />
                   </th>
                 )}
-                <th className="px-6 py-4 sticky left-10 z-20 bg-gray-50 dark:bg-slate-800">CTN</th>
-                <th className="px-6 py-4">ORDER NUMBER</th>
+                {/* ── Frozen columns (sticky) ── */}
+                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[112px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>CTN</th>
+                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[160px]", userRole === 'Admin' ? 'left-[160px]' : 'left-[112px]')}>CUSTOMER NAME</th>
+                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[160px]", userRole === 'Admin' ? 'left-[320px]' : 'left-[272px]')}>PHONE</th>
+                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[130px] border-r border-gray-200 dark:border-slate-700", userRole === 'Admin' ? 'left-[480px]' : 'left-[432px]')}>STATUS</th>
+                {/* ── Scrollable columns ── */}
+                <th className="px-6 py-4 whitespace-nowrap">ORDER NUMBER</th>
                 {fv('entryLeads') && <th className="px-6 py-4">ENTRY LEADS</th>}
                 <th className="px-6 py-4">DATE</th>
-                <th className="px-6 py-4">CUSTOMER NAME</th>
-                <th className="px-6 py-4">PHONE</th>
                 <th className="px-6 py-4">REQUIREMENT</th>
-                <th className="px-6 py-4">CURRENT STATUS</th>
-                {fv('detailsNotes') && <th className="px-6 py-4">DETAILS / NOTES</th>}
                 <th className="px-6 py-4">TELE STAFF</th>
                 <th className="px-6 py-4">TECH STAFF</th>
+                {fv('detailsNotes') && <th className="px-6 py-4">DETAILS / NOTES</th>}
                 {fv('claimApplyDate') && <th className="px-6 py-4 whitespace-nowrap">CLAIM DATE</th>}
                 {fv('followUpDate') && <th className="px-6 py-4 whitespace-nowrap">FOLLOW UP</th>}
                 {fv('serviceCharges') && <th className="px-6 py-4">SERVICE CHARGES</th>}
@@ -728,27 +730,29 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
               ) : paginatedContacts.map(contact => (
                 <tr key={contact.id} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors text-sm">
                   {userRole === 'Admin' && (
-                    <td className="px-6 py-4 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
+                    <td className="px-4 py-4 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
                       <input type="checkbox" checked={selectedIds.has(contact.id)} onChange={() => handleToggleSelect(contact.id)} className="rounded border-gray-300 text-primary focus:ring-primary" />
                     </td>
                   )}
-                  <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-slate-400 sticky left-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">{contact.ctn || '—'}</td>
-                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
-                  {fv('entryLeads') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.entryLeads || '—'}</td>}
-                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
-                  <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.customerName || '—'}</td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.customerContactNumber || '—'}</td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300 max-w-[160px] truncate">{contact.customerRequirement || '—'}</td>
-                  <td className="px-6 py-4">
+                  {/* ── Frozen cells ── */}
+                  <td className={cn("px-4 py-4 font-mono text-xs text-gray-500 dark:text-slate-400 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[112px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>{contact.ctn || '—'}</td>
+                  <td className={cn("px-4 py-4 font-bold text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[160px]", userRole === 'Admin' ? 'left-[160px]' : 'left-[112px]')}>{contact.customerName || '—'}</td>
+                  <td className={cn("px-4 py-4 text-gray-600 dark:text-slate-300 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[160px]", userRole === 'Admin' ? 'left-[320px]' : 'left-[272px]')}>{contact.customerContactNumber || '—'}</td>
+                  <td className={cn("px-4 py-4 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[130px] border-r border-gray-100 dark:border-slate-800", userRole === 'Admin' ? 'left-[480px]' : 'left-[432px]')}>
                     <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
                       contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
                         contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     )}>{contact.currentStatus || '—'}</span>
                   </td>
-                  {fv('detailsNotes') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[180px] truncate">{contact.detailsNotes || '—'}</td>}
+                  {/* ── Scrollable cells ── */}
+                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
+                  {fv('entryLeads') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.entryLeads || '—'}</td>}
+                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
+                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300 max-w-[160px] truncate">{contact.customerRequirement || '—'}</td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
                   <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalStaff || '—'}</td>
+                  {fv('detailsNotes') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[180px] truncate">{contact.detailsNotes || '—'}</td>}
                   {fv('claimApplyDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.claimApplyDate || '—'}</td>}
                   {fv('followUpDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.followUpDate || '—'}</td>}
                   {fv('serviceCharges') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.serviceCharges ? `₹${contact.serviceCharges}` : '—'}</td>}

@@ -35,6 +35,17 @@ export default function App() {
     }
   }, [user]);
 
+  // ── Real-time sync: poll every 30 seconds so all open sessions stay in sync ──
+  useEffect(() => {
+    if (!user) return;
+    const poll = setInterval(() => {
+      api.getContacts()
+        .then(fresh => setContacts(fresh))
+        .catch(() => {}); // silently ignore transient errors
+    }, 30_000);
+    return () => clearInterval(poll);
+  }, [user]);
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       return (localStorage.getItem('theme') as 'light' | 'dark') || 'light';

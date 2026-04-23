@@ -113,7 +113,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessAdmin: false,
   },
 
-  // TeleCalling: CTN → Current Status (create/edit/view) + Salary Amount (view) + TeleCalling Share (view)
+  // TeleCalling: CTN → Current Status + Salary/Payment fields (create/edit/view/fav) + TeleCalling Share (view only)
   TeleCalling: {
     canViewContacts: true,
     canCreateContact: true,
@@ -121,9 +121,9 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canDeleteContact: false,
     canBulkUpload: false,
     canExport: false,
-    canToggleFavorite: false,
-    visibleFields: ['ctn_to_current_status', 'salary_amount', 'telecalling_share'],
-    editableFields: ['ctn_to_current_status'], // salary_amount & telecalling_share are view-only
+    canToggleFavorite: true,
+    visibleFields: ['ctn_to_current_status', 'salary_amount', 'telecalling_share', 'screenshot'],
+    editableFields: ['ctn_to_current_status', 'salary_amount', 'screenshot'], // telecalling_share is view-only
     canAccessAdmin: false,
   },
 };
