@@ -198,17 +198,18 @@ async function startServer() {
     }
 
     // ── LOG LOGIN ACTIVITY ────────────────────────────────────────────────────
-    await supabase.from('user_activity').insert({
+    const { error: actErr } = await supabase.from('user_activity').insert({
       user_id: data.id,
       user_name: data.name,
       user_email: data.email,
       action: 'login',
       details: 'User logged in',
     });
+    if (actErr) console.error('⚠️  user_activity insert error (login):', actErr.code, actErr.message);
 
     // ── ATTENDANCE: mark one record per calendar day (upsert = safe against races) ──
     const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    await supabase.from('attendance').upsert(
+    const { error: attErr } = await supabase.from('attendance').upsert(
       {
         user_id: data.id,
         user_name: data.name,
@@ -218,6 +219,7 @@ async function startServer() {
       },
       { onConflict: 'user_id,date', ignoreDuplicates: true }
     );
+    if (attErr) console.error('⚠️  attendance upsert error:', attErr.code, attErr.message);
 
     res.json({ id: data.id, name: data.name, email: data.email, role: data.role });
   });
@@ -801,7 +803,13 @@ async function startServer() {
       details: details || '',
     });
     if (error) {
-      if (error.message.includes('row-level security')) console.error('\n🚨 Supabase RLS Error:', error.message, '\n👉 NOTE: You need to disable RLS on the "user_activity" table in Supabase!\n');
+      console.error('⚠️  POST /api/activity error:', error.code, error.message);
+      if (error.message.includes('row-level security')) {
+        console.error('🚨 RLS is blocking inserts on user_activity table! Disable RLS or add a policy.');
+      }
+      if (error.code === '23503') {
+        console.error('🚨 FK violation: user_id', userId, 'not found in app_users. Check the user exists.');
+      }
       return res.status(500).json({ message: error.message });
     }
     res.json({ success: true });

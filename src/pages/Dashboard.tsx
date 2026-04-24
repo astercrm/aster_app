@@ -30,29 +30,35 @@ function AdminActivityPanel() {
   const [summary, setSummary] = useState<any[]>([]);
   const [online, setOnline] = useState<any[]>([]);
   const [activity, setActivity] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [tab, setTab] = useState<'online' | 'today' | 'log'>('online');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const [s, o, a] = await Promise.all([
+        const [s, o, a, u] = await Promise.all([
           api.getActivitySummary(),
           api.getOnlineUsers(),
           api.getActivity(),
+          api.getUsers(),
         ]);
-        setSummary(s);
-        setOnline(o);
-        setActivity(a);
-      } catch (e) {
+        setSummary(s || []);
+        setOnline(o || []);
+        setActivity(a || []);
+        setUsers(u || []);
+      } catch (e: any) {
+        setError(e?.message || 'Failed to load activity');
         console.error(e);
       } finally {
         setLoading(false);
       }
     };
     load();
-    const interval = setInterval(load, 60 * 1000); // refresh every 1 min
+    const interval = setInterval(load, 30 * 1000); // refresh every 30 sec
     return () => clearInterval(interval);
   }, []);
 
@@ -71,11 +77,18 @@ function AdminActivityPanel() {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between">
+      <div className="p-6 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="font-bold text-lg dark:text-white">Employee Activity</h3>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-            {online.length} online now · {summary.length} active today
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+              {online.length} online now
+            </span>
+            {' · '}
+            {summary.length} active today
+            {' · '}
+            {users.length} total employees
           </p>
         </div>
         <div className="flex gap-2">
@@ -89,14 +102,20 @@ function AdminActivityPanel() {
                   : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
               }`}
             >
-              {t === 'online' ? `Online (${online.length})` : t === 'today' ? 'Today' : 'Activity Log'}
+              {t === 'online' ? `Online (${online.length})` : t === 'today' ? `Today (${summary.length})` : 'Activity Log'}
             </button>
           ))}
         </div>
       </div>
 
+      {error && (
+        <div className="px-6 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-sm">
+          ⚠️ {error}
+        </div>
+      )}
+
       {loading ? (
-        <div className="p-8 text-center text-sm text-gray-400 dark:text-slate-500">Loading...</div>
+        <div className="p-8 text-center text-sm text-gray-400 dark:text-slate-500">Loading activity data...</div>
       ) : (
         <div className="overflow-x-auto">
 
@@ -106,34 +125,42 @@ function AdminActivityPanel() {
               <thead>
                 <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold">
                   <th className="px-6 py-3">Employee</th>
-                  <th className="px-6 py-3">Email</th>
+                  <th className="px-6 py-3">Role</th>
                   <th className="px-6 py-3">Last Seen</th>
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                {online.length === 0 ? (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-400">No employees online right now</td></tr>
-                ) : online.map((u: any) => (
-                  <tr key={u.user_id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                          {(u.user_name || '').charAt(0).toUpperCase()}
+                {users.length === 0 ? (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-400">No employees registered</td></tr>
+                ) : users.map((u: any) => {
+                  const onlineEntry = online.find((o: any) => o.user_id === u.id);
+                  const isOnline = !!onlineEntry;
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700' : 'bg-primary/10 text-primary'}`}>
+                            {(u.name || '').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{u.name}</span>
                         </div>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{u.user_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-sm text-gray-500 dark:text-slate-400">{u.user_email}</td>
-                    <td className="px-6 py-3 text-sm text-gray-500 dark:text-slate-400">{formatTime(u.created_at)}</td>
-                    <td className="px-6 py-3">
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
-                        Online
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-3 text-xs font-bold text-gray-500 dark:text-slate-400">{u.role}</td>
+                      <td className="px-6 py-3 text-sm text-gray-500 dark:text-slate-400">{isOnline ? formatTime(onlineEntry.created_at) : '—'}</td>
+                      <td className="px-6 py-3">
+                        {isOnline ? (
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+                            Online
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-gray-400">Offline</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -153,29 +180,31 @@ function AdminActivityPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                {summary.length === 0 ? (
-                  <tr><td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-400">No activity today</td></tr>
-                ) : summary.map((u: any) => (
-                  <tr key={u.userId} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
-                          {(u.userName || '').charAt(0).toUpperCase()}
+                {users.map((u: any) => {
+                  const s = summary.find((x: any) => x.userId === u.id);
+                  const isOnline = online.some((o: any) => o.user_id === u.id);
+                  return (
+                    <tr key={u.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
+                      <td className="px-6 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700' : 'bg-primary/10 text-primary'}`}>
+                            {(u.name || '').charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{u.name}</p>
+                            <p className="text-xs text-gray-400">{u.role}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{u.userName}</p>
-                          <p className="text-xs text-gray-400">{u.userEmail}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-3 text-sm text-gray-600 dark:text-slate-300">{formatTime(u.loginTime)}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600 dark:text-slate-300">{formatTime(u.lastSeen)}</td>
-                    <td className="px-6 py-3 text-sm font-bold text-primary">{calcHours(u.loginTime, u.lastSeen)}</td>
-                    <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">{u.contactsCreated}</span></td>
-                    <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">{u.contactsEdited}</span></td>
-                    <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{u.contactsDeleted}</span></td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-3 text-sm text-gray-600 dark:text-slate-300">{s ? formatTime(s.loginTime) : <span className="text-gray-300 dark:text-slate-600">Not logged in</span>}</td>
+                      <td className="px-6 py-3 text-sm text-gray-600 dark:text-slate-300">{s ? formatTime(s.lastSeen) : '—'}</td>
+                      <td className="px-6 py-3 text-sm font-bold text-primary">{s ? calcHours(s.loginTime, s.lastSeen) : '—'}</td>
+                      <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">{s?.contactsCreated ?? 0}</span></td>
+                      <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">{s?.contactsEdited ?? 0}</span></td>
+                      <td className="px-6 py-3"><span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">{s?.contactsDeleted ?? 0}</span></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -192,7 +221,11 @@ function AdminActivityPanel() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                {activity.filter((a: any) => a.action !== 'heartbeat').slice(0, 50).map((a: any) => (
+                {activity.filter((a: any) => a.action !== 'heartbeat').length === 0 ? (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-sm text-gray-400">
+                    No activity logged yet. Activity appears here as employees log in and work.
+                  </td></tr>
+                ) : activity.filter((a: any) => a.action !== 'heartbeat').slice(0, 50).map((a: any) => (
                   <tr key={a.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-3 text-xs text-gray-400 whitespace-nowrap">{formatTime(a.created_at)}</td>
                     <td className="px-6 py-3 text-sm font-medium text-gray-900 dark:text-white">{a.user_name}</td>

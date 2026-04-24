@@ -17,7 +17,7 @@ import {
   type AppRole,
 } from '../permissions';
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 25;
 
 interface ContactsProps {
   contacts: Contact[];
@@ -720,111 +720,112 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
             <thead>
               <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
                 {userRole === 'Admin' && (
-                  <th className="px-4 py-4 w-12 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
+                  <th className="px-3 py-2 w-10 sticky left-0 z-20 bg-gray-50 dark:bg-slate-800">
                     <input type="checkbox" checked={paginatedContacts.length > 0 && paginatedContacts.every(c => selectedIds.has(c.id))} onChange={handleSelectAll} className="rounded border-gray-300 text-primary focus:ring-primary" />
                   </th>
                 )}
                 {/* ── Frozen columns (sticky) ── */}
-                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[112px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>CTN</th>
-                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[160px]", userRole === 'Admin' ? 'left-[160px]' : 'left-[112px]')}>CUSTOMER NAME</th>
-                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[160px]", userRole === 'Admin' ? 'left-[320px]' : 'left-[272px]')}>PHONE</th>
-                <th className={cn("px-4 py-4 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[130px] border-r border-gray-200 dark:border-slate-700", userRole === 'Admin' ? 'left-[480px]' : 'left-[432px]')}>STATUS</th>
+                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[100px]", userRole === 'Admin' ? 'left-10' : 'left-0')}>CTN</th>
+                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[140px]", userRole === 'Admin' ? 'left-[148px]' : 'left-[100px]')}>CUSTOMER NAME</th>
+                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[140px]", userRole === 'Admin' ? 'left-[288px]' : 'left-[240px]')}>PHONE</th>
+                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[110px] border-r border-gray-200 dark:border-slate-700", userRole === 'Admin' ? 'left-[428px]' : 'left-[380px]')}>STATUS</th>
                 {/* ── Scrollable columns ── */}
-                <th className="px-6 py-4 whitespace-nowrap">ORDER NUMBER</th>
-                {fv('entryLeads') && <th className="px-6 py-4">ENTRY LEADS</th>}
-                <th className="px-6 py-4">DATE</th>
-                <th className="px-6 py-4">REQUIREMENT</th>
-                <th className="px-6 py-4">TELE STAFF</th>
-                <th className="px-6 py-4">TECH STAFF</th>
-                {fv('detailsNotes') && <th className="px-6 py-4">DETAILS / NOTES</th>}
-                {fv('claimApplyDate') && <th className="px-6 py-4 whitespace-nowrap">CLAIM DATE</th>}
-                {fv('followUpDate') && <th className="px-6 py-4 whitespace-nowrap">FOLLOW UP</th>}
-                {fv('serviceCharges') && <th className="px-6 py-4">SERVICE CHARGES</th>}
-                {fv('receiveAmount') && <th className="px-6 py-4">RECEIVED</th>}
-                {fv('paymentStatus') && <th className="px-6 py-4">PAYMENT</th>}
-                {fv('pdfFileSend') && <th className="px-6 py-4">PDF SEND</th>}
-                {fv('transactionId') && <th className="px-6 py-4">TRANSACTION ID</th>}
-                {fv('receiveDate') && <th className="px-6 py-4 whitespace-nowrap">RECEIVE DATE</th>}
-                {fv('remarks') && <th className="px-6 py-4">REMARKS</th>}
-                {fv('technicalSharePercent') && <th className="px-6 py-4">TECH SHARE</th>}
-                {fv('technicalSalaryAmount') && <th className="px-6 py-4">TECH SALARY</th>}
-                {fv('technicalPaidDate') && <th className="px-6 py-4 whitespace-nowrap">TECH PAID DATE</th>}
-                {fv('technicalRemarks') && <th className="px-6 py-4">TECH REMARKS</th>}
-                {fv('technicalTotalAmount') && <th className="px-6 py-4">TECH TOTAL</th>}
-                {fv('teleCallingSharePercent') && <th className="px-6 py-4">TELE SHARE</th>}
-                {fv('teleCallingSalaryAmount') && <th className="px-6 py-4">TELE SALARY</th>}
-                {fv('teleCallingPaidDate') && <th className="px-6 py-4 whitespace-nowrap">TELE PAID DATE</th>}
-                {fv('teleCallingRemarks') && <th className="px-6 py-4">TELE REMARKS</th>}
-                {fv('teleTotalAmount') && <th className="px-6 py-4">TELE TOTAL</th>}
-                <th className="px-6 py-4 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800">ACTIONS</th>
+                <th className="px-3 py-2 whitespace-nowrap">ORDER NUMBER</th>
+                {fv('entryLeads') && <th className="px-3 py-2">ENTRY LEADS</th>}
+                <th className="px-3 py-2">DATE</th>
+                <th className="px-3 py-2">REQUIREMENT</th>
+                <th className="px-3 py-2">TELE STAFF</th>
+                <th className="px-3 py-2">TECH STAFF</th>
+                {fv('detailsNotes') && <th className="px-3 py-2">DETAILS / NOTES</th>}
+                {fv('claimApplyDate') && <th className="px-3 py-2 whitespace-nowrap">CLAIM DATE</th>}
+                {fv('followUpDate') && <th className="px-3 py-2 whitespace-nowrap">FOLLOW UP</th>}
+                {fv('serviceCharges') && <th className="px-3 py-2">SERVICE CHARGES</th>}
+                {fv('receiveAmount') && <th className="px-3 py-2">RECEIVED</th>}
+                {fv('paymentStatus') && <th className="px-3 py-2">PAYMENT</th>}
+                {fv('pdfFileSend') && <th className="px-3 py-2">PDF SEND</th>}
+                {fv('transactionId') && <th className="px-3 py-2">TRANSACTION ID</th>}
+                {fv('receiveDate') && <th className="px-3 py-2 whitespace-nowrap">RECEIVE DATE</th>}
+                {fv('remarks') && <th className="px-3 py-2">REMARKS</th>}
+                {fv('technicalSharePercent') && <th className="px-3 py-2">TECH SHARE</th>}
+                {fv('technicalSalaryAmount') && <th className="px-3 py-2">TECH SALARY</th>}
+                {fv('technicalPaidDate') && <th className="px-3 py-2 whitespace-nowrap">TECH PAID DATE</th>}
+                {fv('technicalRemarks') && <th className="px-3 py-2">TECH REMARKS</th>}
+                {fv('technicalTotalAmount') && <th className="px-3 py-2">TECH TOTAL</th>}
+                {fv('teleCallingSharePercent') && <th className="px-3 py-2">TELE SHARE</th>}
+
+                {fv('teleCallingSalaryAmount') && <th className="px-3 py-2">TELE SALARY</th>}
+                {fv('teleCallingPaidDate') && <th className="px-3 py-2 whitespace-nowrap">TELE PAID DATE</th>}
+                {fv('teleCallingRemarks') && <th className="px-3 py-2">TELE REMARKS</th>}
+                {fv('teleTotalAmount') && <th className="px-3 py-2">TELE TOTAL</th>}
+                <th className="px-3 py-2 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
               {paginatedContacts.length === 0 ? (
-                <tr><td colSpan={40} className="px-6 py-16 text-center text-gray-400 text-sm">No contacts found.</td></tr>
+                <tr><td colSpan={40} className="px-3 py-10 text-center text-gray-400 text-sm">No contacts found.</td></tr>
               ) : paginatedContacts.map(contact => (
                 <tr key={contact.id} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors text-sm">
                   {userRole === 'Admin' && (
-                    <td className="px-4 py-4 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
+                    <td className="px-3 py-2 sticky left-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
                       <input type="checkbox" checked={selectedIds.has(contact.id)} onChange={() => handleToggleSelect(contact.id)} className="rounded border-gray-300 text-primary focus:ring-primary" />
                     </td>
                   )}
                   {/* ── Frozen cells ── */}
-                  <td className={cn("px-4 py-4 font-mono text-xs text-gray-500 dark:text-slate-400 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[112px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>{contact.ctn || '—'}</td>
-                  <td className={cn("px-4 py-4 font-bold text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[160px]", userRole === 'Admin' ? 'left-[160px]' : 'left-[112px]')}>{contact.customerName || '—'}</td>
-                  <td className={cn("px-4 py-4 text-gray-600 dark:text-slate-300 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[160px]", userRole === 'Admin' ? 'left-[320px]' : 'left-[272px]')}>{contact.customerContactNumber || '—'}</td>
-                  <td className={cn("px-4 py-4 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[130px] border-r border-gray-100 dark:border-slate-800", userRole === 'Admin' ? 'left-[480px]' : 'left-[432px]')}>
-                    <span className={cn("px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
+                  <td className={cn("px-3 py-2 font-mono text-xs text-gray-500 dark:text-slate-400 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[100px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>{contact.ctn || '—'}</td>
+                  <td className={cn("px-3 py-2 font-bold text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[140px]", userRole === 'Admin' ? 'left-[148px]' : 'left-[100px]')}>{contact.customerName || '—'}</td>
+                  <td className={cn("px-3 py-2 text-gray-600 dark:text-slate-300 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[140px]", userRole === 'Admin' ? 'left-[288px]' : 'left-[240px]')}>{contact.customerContactNumber || '—'}</td>
+                  <td className={cn("px-3 py-2 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[110px] border-r border-gray-100 dark:border-slate-800", userRole === 'Admin' ? 'left-[428px]' : 'left-[380px]')}>
+                    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
                       contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
                         contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
                           "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                     )}>{contact.currentStatus || '—'}</span>
                   </td>
                   {/* ── Scrollable cells ── */}
-                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
-                  {fv('entryLeads') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400">{contact.entryLeads || '—'}</td>}
-                  <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300 max-w-[160px] truncate">{contact.customerRequirement || '—'}</td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
-                  <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalStaff || '—'}</td>
-                  {fv('detailsNotes') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[180px] truncate">{contact.detailsNotes || '—'}</td>}
-                  {fv('claimApplyDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.claimApplyDate || '—'}</td>}
-                  {fv('followUpDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.followUpDate || '—'}</td>}
-                  {fv('serviceCharges') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.serviceCharges ? `₹${contact.serviceCharges}` : '—'}</td>}
-                  {fv('receiveAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.receiveAmount ? `₹${contact.receiveAmount}` : '—'}</td>}
-                  {fv('paymentStatus') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.paymentStatus || '—'}</td>}
-                  {fv('pdfFileSend') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.pdfFileSend || '—'}</td>}
-                  {fv('transactionId') && <td className="px-6 py-4 font-mono text-xs text-gray-500 dark:text-slate-400">{contact.transactionId || '—'}</td>}
-                  {fv('receiveDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.receiveDate || '—'}</td>}
-                  {fv('remarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.remarks || '—'}</td>}
-                  {fv('technicalSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.technicalSharePercent ? `${contact.technicalSharePercent}%` : '—'}</td>}
-                  {fv('technicalSalaryAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.technicalSalaryAmount ? `₹${contact.technicalSalaryAmount}` : '—'}</td>}
-                  {fv('technicalPaidDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.technicalPaidDate || '—'}</td>}
-                  {fv('technicalRemarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.technicalRemarks || '—'}</td>}
-                  {fv('technicalTotalAmount') && <td className="px-6 py-4 font-bold text-primary">{contact.technicalTotalAmount ? `₹${contact.technicalTotalAmount}` : '—'}</td>}
-                  {fv('teleCallingSharePercent') && <td className="px-6 py-4 text-gray-600 dark:text-slate-300">{contact.teleCallingSharePercent ? `${contact.teleCallingSharePercent}%` : '—'}</td>}
-                  {fv('teleCallingSalaryAmount') && <td className="px-6 py-4 font-bold text-gray-900 dark:text-white">{contact.teleCallingSalaryAmount ? `₹${contact.teleCallingSalaryAmount}` : '—'}</td>}
-                  {fv('teleCallingPaidDate') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.teleCallingPaidDate || '—'}</td>}
-                  {fv('teleCallingRemarks') && <td className="px-6 py-4 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.teleCallingRemarks || '—'}</td>}
-                  {fv('teleTotalAmount') && <td className="px-6 py-4 font-bold text-primary">{contact.teleTotalAmount ? `₹${contact.teleTotalAmount}` : '—'}</td>}
-                  <td className="px-6 py-4 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
+                  <td className="px-3 py-2 text-gray-500 dark:text-slate-400">{contact.orderNumber || '—'}</td>
+                  {fv('entryLeads') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400">{contact.entryLeads || '—'}</td>}
+                  <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.date || '—'}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-slate-300 max-w-[140px] truncate">{contact.customerRequirement || '—'}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.teleCallingStaff || '—'}</td>
+                  <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.technicalStaff || '—'}</td>
+                  {fv('detailsNotes') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[160px] truncate">{contact.detailsNotes || '—'}</td>}
+                  {fv('claimApplyDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.claimApplyDate || '—'}</td>}
+                  {fv('followUpDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.followUpDate || '—'}</td>}
+                  {fv('serviceCharges') && <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.serviceCharges ? `₹${contact.serviceCharges}` : '—'}</td>}
+                  {fv('receiveAmount') && <td className="px-3 py-2 font-bold text-gray-900 dark:text-white">{contact.receiveAmount ? `₹${contact.receiveAmount}` : '—'}</td>}
+                  {fv('paymentStatus') && <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.paymentStatus || '—'}</td>}
+                  {fv('pdfFileSend') && <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.pdfFileSend || '—'}</td>}
+                  {fv('transactionId') && <td className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-slate-400">{contact.transactionId || '—'}</td>}
+                  {fv('receiveDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.receiveDate || '—'}</td>}
+                  {fv('remarks') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[140px] truncate">{contact.remarks || '—'}</td>}
+                  {fv('technicalSharePercent') && <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.technicalSharePercent ? `${contact.technicalSharePercent}%` : '—'}</td>}
+                  {fv('technicalSalaryAmount') && <td className="px-3 py-2 font-bold text-gray-900 dark:text-white">{contact.technicalSalaryAmount ? `₹${contact.technicalSalaryAmount}` : '—'}</td>}
+                  {fv('technicalPaidDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.technicalPaidDate || '—'}</td>}
+                  {fv('technicalRemarks') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[140px] truncate">{contact.technicalRemarks || '—'}</td>}
+                  {fv('technicalTotalAmount') && <td className="px-3 py-2 font-bold text-primary">{contact.technicalTotalAmount ? `₹${contact.technicalTotalAmount}` : '—'}</td>}
+                  {fv('teleCallingSharePercent') && <td className="px-3 py-2 text-gray-600 dark:text-slate-300">{contact.teleCallingSharePercent ? `${contact.teleCallingSharePercent}%` : '—'}</td>}
+                  {fv('teleCallingSalaryAmount') && <td className="px-3 py-2 font-bold text-gray-900 dark:text-white">{contact.teleCallingSalaryAmount ? `₹${contact.teleCallingSalaryAmount}` : '—'}</td>}
+                  {fv('teleCallingPaidDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.teleCallingPaidDate || '—'}</td>}
+                  {fv('teleCallingRemarks') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[140px] truncate">{contact.teleCallingRemarks || '—'}</td>}
+                  {fv('teleTotalAmount') && <td className="px-3 py-2 font-bold text-primary">{contact.teleTotalAmount ? `₹${contact.teleTotalAmount}` : '—'}</td>}
+                  <td className="px-3 py-2 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {perms.canToggleFavorite && (
-                        <button onClick={(e) => handleToggleFavorite(contact.id, e)} className={cn("p-1.5 rounded-lg transition-colors", contact.isFavorite ? "text-amber-400" : "text-gray-400 hover:text-amber-400")}>
-                          <Star size={15} className={contact.isFavorite ? "fill-current" : ""} />
+                        <button onClick={(e) => handleToggleFavorite(contact.id, e)} className={cn("p-1 rounded-lg transition-colors", contact.isFavorite ? "text-amber-400" : "text-gray-400 hover:text-amber-400")}>
+                          <Star size={14} className={contact.isFavorite ? "fill-current" : ""} />
                         </button>
                       )}
-                      <button onClick={() => handleViewContact(contact)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500 dark:text-slate-400 transition-colors">
-                        <Eye size={15} />
+                      <button onClick={() => handleViewContact(contact)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-500 dark:text-slate-400 transition-colors">
+                        <Eye size={14} />
                       </button>
                       {perms.canEditContact && (
-                        <button onClick={() => handleEditContact(contact)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
-                          <Edit2 size={15} />
+                        <button onClick={() => handleEditContact(contact)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
+                          <Edit2 size={14} />
                         </button>
                       )}
                       {perms.canDeleteContact && (
-                        <button onClick={() => handleDeleteContact(contact.id)} className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors">
-                          <Trash2 size={15} />
+                        <button onClick={() => handleDeleteContact(contact.id)} className="p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 transition-colors">
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </div>
