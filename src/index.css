@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #0284c7;
+  --color-primary: #2754F5;
   --color-primary-foreground: #ffffff;
 }
 
 @variant dark (&:where(.dark, .dark *));
 
-/* ── Beautiful Sky Blue Theme ─────────────────────────────────────────────── */
+/* ── Vibrant Blue #2754F5 Theme ────────────────────────────────────────────── */
 
-/* Main app background — sky blue gradient with subtle mesh */
+/* Main app background — deep indigo-blue gradient with subtle mesh */
 .sky-bg {
-  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 25%, #e0f7fa 50%, #dbeafe 75%, #f0f9ff 100%);
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 25%, #ede9fe 50%, #dbeafe 75%, #f0f4ff 100%);
   position: relative;
   overflow: hidden;
 }
@@ -24,10 +24,10 @@
   width: 200%;
   height: 200%;
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(56, 189, 248, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
-    radial-gradient(ellipse at 40% 80%, rgba(125, 211, 252, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 70%, rgba(186, 230, 253, 0.1) 0%, transparent 40%);
+    radial-gradient(ellipse at 20% 50%, rgba(39, 84, 245, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 70%, rgba(79, 70, 229, 0.10) 0%, transparent 40%);
   animation: skyMesh 25s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: 0;
@@ -42,14 +42,14 @@
 
 /* Dark mode override */
 .dark .sky-bg {
-  background: linear-gradient(135deg, #0c1929 0%, #0f172a 40%, #0e1a2e 70%, #111827 100%);
+  background: linear-gradient(135deg, #080d1f 0%, #0d1230 40%, #0e1035 70%, #0a0f28 100%);
 }
 
 .dark .sky-bg::before {
   background:
-    radial-gradient(ellipse at 20% 50%, rgba(14, 165, 233, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(56, 189, 248, 0.04) 0%, transparent 50%),
-    radial-gradient(ellipse at 40% 80%, rgba(2, 132, 199, 0.05) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 50%, rgba(39, 84, 245, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 80%, rgba(79, 70, 229, 0.05) 0%, transparent 50%);
 }
 
 /* Floating decorative orbs */
@@ -59,7 +59,7 @@
   width: 600px;
   height: 600px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(39, 84, 245, 0.10) 0%, transparent 70%);
   top: -200px;
   right: -200px;
   animation: floatOrb 30s ease-in-out infinite alternate;
@@ -75,57 +75,57 @@
 
 /* ── Sidebar styling ──────────────────────────────────────────────────────── */
 .sidebar-sky {
-  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 50%, #e0f2fe 100%);
-  border-right: 1px solid rgba(186, 230, 253, 0.5);
-  box-shadow: 2px 0 20px rgba(14, 165, 233, 0.04);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f4ff 50%, #eef2ff 100%);
+  border-right: 1px solid rgba(39, 84, 245, 0.12);
+  box-shadow: 2px 0 20px rgba(39, 84, 245, 0.05);
 }
 
 .dark .sidebar-sky {
-  background: linear-gradient(180deg, #0f172a 0%, #0c1929 50%, #0e1a2e 100%);
-  border-right: 1px solid rgba(56, 189, 248, 0.08);
-  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(180deg, #0a0f28 0%, #080d1f 50%, #0d1230 100%);
+  border-right: 1px solid rgba(39, 84, 245, 0.12);
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Topbar glass effect ──────────────────────────────────────────────────── */
 .topbar-sky {
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.80);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border-bottom: 1px solid rgba(186, 230, 253, 0.4);
-  box-shadow: 0 1px 12px rgba(14, 165, 233, 0.06);
+  border-bottom: 1px solid rgba(39, 84, 245, 0.15);
+  box-shadow: 0 1px 12px rgba(39, 84, 245, 0.07);
 }
 
 .dark .topbar-sky {
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(8, 13, 31, 0.85);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  border-bottom: 1px solid rgba(56, 189, 248, 0.08);
+  border-bottom: 1px solid rgba(39, 84, 245, 0.15);
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Card styling with glass effect ───────────────────────────────────────── */
 .card-sky {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(186, 230, 253, 0.4);
+  border: 1px solid rgba(39, 84, 245, 0.12);
   box-shadow:
-    0 1px 3px rgba(14, 165, 233, 0.04),
-    0 4px 16px rgba(14, 165, 233, 0.04);
+    0 1px 3px rgba(39, 84, 245, 0.05),
+    0 4px 16px rgba(39, 84, 245, 0.05);
   transition: box-shadow 0.3s ease, transform 0.2s ease;
 }
 
 .card-sky:hover {
   box-shadow:
-    0 2px 8px rgba(14, 165, 233, 0.08),
-    0 8px 24px rgba(14, 165, 233, 0.06);
+    0 2px 8px rgba(39, 84, 245, 0.10),
+    0 8px 24px rgba(39, 84, 245, 0.08);
 }
 
 .dark .card-sky {
-  background: rgba(15, 23, 42, 0.7);
-  border: 1px solid rgba(56, 189, 248, 0.08);
+  background: rgba(8, 13, 31, 0.75);
+  border: 1px solid rgba(39, 84, 245, 0.15);
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.1),
-    0 4px 16px rgba(0, 0, 0, 0.1);
+    0 1px 3px rgba(0, 0, 0, 0.15),
+    0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 /* ── Beautiful scrollbar ──────────────────────────────────────────────────── */
@@ -139,20 +139,20 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(14, 165, 233, 0.2);
+  background: rgba(39, 84, 245, 0.22);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(14, 165, 233, 0.35);
+  background: rgba(39, 84, 245, 0.40);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(56, 189, 248, 0.15);
+  background: rgba(39, 84, 245, 0.20);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(56, 189, 248, 0.3);
+  background: rgba(39, 84, 245, 0.38);
 }
 
 /* ── Subtle page transition ───────────────────────────────────────────────── */
@@ -173,5 +173,5 @@ main > * {
 
 /* ── Button glow on hover ─────────────────────────────────────────────────── */
 button.bg-primary:hover {
-  box-shadow: 0 4px 20px rgba(2, 132, 199, 0.35);
+  box-shadow: 0 4px 20px rgba(39, 84, 245, 0.40);
 }

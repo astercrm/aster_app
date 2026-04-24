@@ -198,14 +198,49 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const filteredContacts = useMemo(() => {
     const query = (searchQuery || '').toLowerCase().trim();
     if (!query) return contacts;
-    return contacts.filter(contact =>
-      String(contact.customerName || '').toLowerCase().includes(query) ||
-      String(contact.teleCallingStaff || '').toLowerCase().includes(query) ||
-      String(contact.technicalStaff || '').toLowerCase().includes(query) ||
-      String(contact.customerContactNumber || '').toLowerCase().includes(query) ||
-      String(contact.orderNumber || '').toLowerCase().includes(query) ||
-      String(contact.ctn || '').toLowerCase().includes(query)
-    );
+    return contacts.filter(contact => {
+      // Helper: safely convert any field to lowercase string
+      const s = (v: any) => String(v || '').toLowerCase();
+      return (
+        // Identity / core fields
+        s(contact.ctn).includes(query) ||
+        s(contact.customerName).includes(query) ||
+        s(contact.customerContactNumber).includes(query) ||
+        s(contact.orderNumber).includes(query) ||
+        // Staff fields
+        s(contact.teleCallingStaff).includes(query) ||
+        s(contact.technicalStaff).includes(query) ||
+        // Date fields — match day, month name, or year typed by user
+        s(contact.date).includes(query) ||
+        s(contact.claimApplyDate).includes(query) ||
+        s(contact.followUpDate).includes(query) ||
+        s(contact.receiveDate).includes(query) ||
+        s(contact.technicalPaidDate).includes(query) ||
+        s(contact.teleCallingPaidDate).includes(query) ||
+        // Lead / status
+        s(contact.entryLeads).includes(query) ||
+        s(contact.currentStatus).includes(query) ||
+        s(contact.customerRequirement).includes(query) ||
+        // Notes / remarks
+        s(contact.detailsNotes).includes(query) ||
+        s(contact.remarks).includes(query) ||
+        s(contact.technicalRemarks).includes(query) ||
+        s(contact.teleCallingRemarks).includes(query) ||
+        // Payment / financial
+        s(contact.serviceCharges).includes(query) ||
+        s(contact.paymentStatus).includes(query) ||
+        s(contact.pdfFileSend).includes(query) ||
+        s(contact.receiveAmount).includes(query) ||
+        s(contact.transactionId).includes(query) ||
+        // Salary / share
+        s(contact.technicalSharePercent).includes(query) ||
+        s(contact.technicalSalaryAmount).includes(query) ||
+        s(contact.technicalTotalAmount).includes(query) ||
+        s(contact.teleCallingSharePercent).includes(query) ||
+        s(contact.teleCallingSalaryAmount).includes(query) ||
+        s(contact.teleTotalAmount).includes(query)
+      );
+    });
   }, [searchQuery, contacts]);
 
   const totalPages = Math.ceil(filteredContacts.length / ITEMS_PER_PAGE);
@@ -657,7 +692,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Search by name, order no, phone or CTN..."
+            placeholder="Search by name, CTN, phone, date, month, year, status, staff, amount..."
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:focus:bg-slate-800 transition-all outline-none dark:text-white"

@@ -1,21 +1,21 @@
 {
-  "name": "ASTER CRM",
+  "name": "ASTER ONLINE SERVICE",
   "short_name": "ASTER",
-  "description": "ASTER Customer Management System",
+  "description": "ASTER Customer Management System — EPF Online Service",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#051733",
-  "orientation": "portrait-primary",
+  "background_color": "#2754F5",
+  "theme_color": "#2754F5",
+  "orientation": "any",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/_png.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/_png.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
