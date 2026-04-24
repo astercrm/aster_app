@@ -107,7 +107,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canDeleteContact: false,
     canBulkUpload: false,
     canExport: false,
-    canToggleFavorite: false,
+    canToggleFavorite: true,
     visibleFields: ['ctn_to_remarks', 'salary_amount', 'technical_share', 'screenshot'],
     editableFields: ['ctn_to_remarks', 'salary_amount', 'screenshot'], // technical_share is view-only
     canAccessAdmin: false,

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ShieldCheck, UserPlus, Search, Edit2, Trash2, User, Mail,
-  Shield, Lock, Users, TrendingUp, Eye,
+  ShieldCheck, UserPlus, Search, Edit2, Trash2, User,
+  Shield, Lock, Users, TrendingUp, Activity, Clock, Wifi, WifiOff,
+  RefreshCw, LogIn, FilePlus, FileEdit, AlertCircle,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
@@ -21,7 +22,16 @@ export default function AdminPanel() {
   const [formError, setFormError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // ── Activity state ────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'users' | 'activity'>('users');
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [activitySummary, setActivitySummary] = useState<any[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
+  const [activityError, setActivityError] = useState<string | null>(null);
+
   useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { if (activeTab === 'activity') fetchActivity(); }, [activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -31,6 +41,25 @@ export default function AdminPanel() {
       console.error('Failed to fetch users:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchActivity = async () => {
+    setIsActivityLoading(true);
+    setActivityError(null);
+    try {
+      const [logs, summary, online] = await Promise.all([
+        api.getActivity(),
+        api.getActivitySummary(),
+        api.getOnlineUsers(),
+      ]);
+      setActivityLogs(logs || []);
+      setActivitySummary(summary || []);
+      setOnlineUsers(online || []);
+    } catch (err: any) {
+      setActivityError(err.message || 'Failed to load activity data.');
+    } finally {
+      setIsActivityLoading(false);
     }
   };
 
@@ -132,7 +161,27 @@ export default function AdminPanel() {
         </button>
       </header>
 
+      {/* ── TABS ──────────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl w-fit">
+        {(['users', 'activity'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-bold transition-all',
+              activeTab === tab
+                ? 'bg-white dark:bg-slate-900 text-primary shadow-sm'
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
+            )}
+          >
+            {tab === 'users' ? <Users size={16} /> : <Activity size={16} />}
+            {tab === 'users' ? 'Users' : 'Employee Activity'}
+          </button>
+        ))}
+      </div>
+
       {/* ── USERS SECTION ──────────────────────────────────────────────────── */}
+      {activeTab === 'users' && (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* System Overview */}
         <div className="lg:col-span-1 space-y-6">
@@ -176,7 +225,7 @@ export default function AdminPanel() {
               </div>
               <div>
                 <span className={cn('font-bold px-2 py-0.5 rounded-full', ROLE_BADGE_COLORS['Technical'])}>Technical</span>
-                <p className="mt-1">Create/Edit/View: CTN→Remarks + Payment fields. View-only: Technical Share % &amp; Salary calculated fields.</p>
+                <p className="mt-1">Create/Edit/View/Favourite: CTN→Remarks + Payment fields. View-only: Technical Share % &amp; Salary calculated fields.</p>
               </div>
               <div>
                 <span className={cn('font-bold px-2 py-0.5 rounded-full', ROLE_BADGE_COLORS['TeleCalling'])}>TeleCalling</span>
@@ -261,8 +310,131 @@ export default function AdminPanel() {
           </div>
         </div>
       </div>
+      )} {/* end users tab */}
 
-      {/* ── Add / Edit Modal ──────────────────────────────────────────────── */}
+      {/* ── ACTIVITY SECTION ───────────────────────────────────────────────── */}
+      {activeTab === 'activity' && (
+        <div className="space-y-6">
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{onlineUsers.length} Online Now</span>
+              </div>
+            </div>
+            <button
+              onClick={fetchActivity}
+              disabled={isActivityLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-60"
+            >
+              <RefreshCw size={15} className={isActivityLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+
+          {activityError && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm font-medium">
+              <AlertCircle size={16} />{activityError}
+            </div>
+          )}
+
+          {/* Today's summary cards */}
+          {activitySummary.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Today's Activity Summary</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {activitySummary.map((s: any) => (
+                  <div key={s.userId} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                        <User size={16} className="text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{s.userName}</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{s.userEmail}</p>
+                      </div>
+                      {onlineUsers.some((o: any) => o.user_id === s.userId) && (
+                        <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+                          <Wifi size={10} />Online
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                        <p className="text-lg font-black text-primary">{s.contactsCreated}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Created</p>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                        <p className="text-lg font-black text-amber-500">{s.contactsEdited}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Edited</p>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                        <p className="text-lg font-black text-red-500">{s.contactsDeleted}</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Deleted</p>
+                      </div>
+                    </div>
+                    {s.loginTime && (
+                      <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500 flex items-center gap-1">
+                        <LogIn size={10} /> Login: {new Date(s.loginTime).toLocaleTimeString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Activity log table */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Recent Activity Log</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
+              {isActivityLoading ? (
+                <div className="py-16 text-center text-gray-400 text-sm">Loading activity...</div>
+              ) : activityLogs.length === 0 ? (
+                <div className="py-16 text-center text-gray-400 text-sm">No activity recorded yet.</div>
+              ) : (
+                <div className="divide-y divide-gray-50 dark:divide-slate-800 max-h-[500px] overflow-y-auto">
+                  {activityLogs.map((log: any) => (
+                    <div key={log.id} className="flex items-start gap-3 px-5 py-3 hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                      <div className={cn('mt-0.5 w-7 h-7 rounded-full flex items-center justify-center shrink-0',
+                        log.action === 'login' ? 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-600' :
+                        log.action === 'contact_created' ? 'bg-primary/10 text-primary' :
+                        log.action === 'contact_updated' ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-600' :
+                        log.action === 'contact_deleted' ? 'bg-red-100 dark:bg-red-900/20 text-red-600' :
+                        'bg-gray-100 dark:bg-slate-800 text-gray-500'
+                      )}>
+                        {log.action === 'login' ? <LogIn size={13} /> :
+                         log.action === 'contact_created' ? <FilePlus size={13} /> :
+                         log.action === 'contact_updated' ? <FileEdit size={13} /> :
+                         <Activity size={13} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900 dark:text-white font-medium">
+                          <span className="font-bold">{log.user_name}</span>{' '}
+                          <span className="text-gray-500 dark:text-slate-400">
+                            {log.action === 'login' ? 'logged in' :
+                             log.action === 'contact_created' ? 'created a contact' :
+                             log.action === 'contact_updated' ? 'edited a contact' :
+                             log.action === 'contact_deleted' ? 'deleted a contact' :
+                             log.action}
+                          </span>
+                        </p>
+                        {log.details && <p className="text-xs text-gray-400 dark:text-slate-500 truncate mt-0.5">{log.details}</p>}
+                      </div>
+                      <span className="text-[10px] text-gray-400 dark:text-slate-500 whitespace-nowrap mt-1 flex items-center gap-1">
+                        <Clock size={10} />{new Date(log.created_at).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )} {/* end activity tab */}
+
+
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
@@ -345,7 +517,7 @@ export default function AdminPanel() {
                 <div className="px-4 py-3 rounded-xl bg-gray-50 dark:bg-slate-800 text-xs text-gray-500 dark:text-slate-400">
                   {formData.role === 'Admin' && 'Full access to all features including admin panel.'}
                   {formData.role === 'User' && 'Can create, edit, view all contact fields. Cannot delete.'}
-                  {formData.role === 'Technical' && 'Can create/edit/view CTN→Remarks + Service Charges, Payment, Received Amount, Transaction ID fields. View-only: Technical Share & Salary Amount calculated fields.'}
+                  {formData.role === 'Technical' && 'Can create/edit/view/favourite CTN→Remarks + Service Charges, Payment, Received Amount, Transaction ID fields. View-only: Technical Share & Salary Amount calculated fields.'}
                   {formData.role === 'TeleCalling' && 'Can create/edit/view/favourite CTN→Current Status + Service Charges, Payment Status, Received Amount, Transaction ID, Receive Date, Screenshot. View-only: TeleCalling Share.'}
                 </div>
               </div>
