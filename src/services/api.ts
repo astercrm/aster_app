@@ -64,5 +64,7 @@ logActivity: (data: { userId: string; userName: string; userEmail: string; actio
 getActivity: () => request<any[]>('/activity'),
 getOnlineUsers: () => request<any[]>('/activity/online'),
 getActivitySummary: () => request<any[]>('/activity/summary'),
+getAttendanceSummary: (month: number, year: number) =>
+  request<any[]>(`/attendance/summary?month=${month}&year=${year}`),
 
 };

@@ -27,11 +27,18 @@ export default function AdminPanel() {
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activitySummary, setActivitySummary] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState<any[]>([]);
   const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
 
   useEffect(() => { fetchUsers(); }, []);
-  useEffect(() => { if (activeTab === 'activity') fetchActivity(); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== 'activity') return;
+    fetchActivity();
+    // Auto-refresh every 30 seconds while on activity tab
+    const timer = setInterval(fetchActivity, 30_000);
+    return () => clearInterval(timer);
+  }, [activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -48,14 +55,21 @@ export default function AdminPanel() {
     setIsActivityLoading(true);
     setActivityError(null);
     try {
-      const [logs, summary, online] = await Promise.all([
+      const now = new Date();
+      const [logs, summary, online, attendance] = await Promise.all([
         api.getActivity(),
         api.getActivitySummary(),
         api.getOnlineUsers(),
+        api.getAttendanceSummary(now.getMonth() + 1, now.getFullYear()),
       ]);
       setActivityLogs(logs || []);
       setActivitySummary(summary || []);
       setOnlineUsers(online || []);
+      // Filter to only today's attendance
+      const todayStr = now.toISOString().slice(0, 10);
+      setAttendanceSummary((attendance || []).filter((a: any) =>
+        (a.dates || []).includes(todayStr)
+      ));
     } catch (err: any) {
       setActivityError(err.message || 'Failed to load activity data.');
     } finally {
@@ -315,21 +329,36 @@ export default function AdminPanel() {
       {/* ── ACTIVITY SECTION ───────────────────────────────────────────────── */}
       {activeTab === 'activity' && (
         <div className="space-y-6">
-          {/* Header row */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 rounded-full">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{onlineUsers.length} Online Now</span>
+          {/* Stats bar */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Online Now', value: onlineUsers.length, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', dot: true },
+              { label: 'Active Today', value: attendanceSummary.length, color: 'text-primary', bg: 'bg-primary/5' },
+              { label: 'Actions Today', value: activitySummary.reduce((s: number, u: any) => s + (u.contactsCreated || 0) + (u.contactsEdited || 0) + (u.contactsDeleted || 0), 0), color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+              { label: 'Total Users', value: users.length, color: 'text-gray-700 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-slate-800' },
+            ].map(stat => (
+              <div key={stat.label} className={cn('rounded-2xl p-4 flex items-center gap-3', stat.bg)}>
+                {stat.dot && <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />}
+                <div>
+                  <p className={cn('text-2xl font-black', stat.color)}>{stat.value}</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{stat.label}</p>
+                </div>
               </div>
-            </div>
+            ))}
+          </div>
+
+          {/* Refresh + auto-refresh notice */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1">
+              <Clock size={11} /> Auto-refreshes every 30 seconds
+            </p>
             <button
               onClick={fetchActivity}
               disabled={isActivityLoading}
               className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-60"
             >
               <RefreshCw size={15} className={isActivityLoading ? 'animate-spin' : ''} />
-              Refresh
+              Refresh Now
             </button>
           </div>
 
@@ -339,51 +368,74 @@ export default function AdminPanel() {
             </div>
           )}
 
-          {/* Today's summary cards */}
-          {activitySummary.length > 0 && (
-            <div>
-              <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">Today's Activity Summary</h3>
+          {/* Today's summary cards — always show all users */}
+          <div>
+            <h3 className="text-sm font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+              Employee Status Today
+            </h3>
+            {isActivityLoading && users.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-sm">Loading...</div>
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {activitySummary.map((s: any) => (
-                  <div key={s.userId} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 p-4 shadow-sm">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User size={16} className="text-primary" />
+                {users.filter((u: any) => u.role !== 'Admin' ? true : true).map((u: any) => {
+                  const stats = activitySummary.find((s: any) => s.userId === u.id);
+                  const isOnline = onlineUsers.some((o: any) => o.user_id === u.id);
+                  const activeToday = attendanceSummary.some((a: any) => a.userId === u.id);
+                  return (
+                    <div key={u.id} className={cn(
+                      'bg-white dark:bg-slate-900 rounded-2xl border p-4 shadow-sm transition-all',
+                      isOnline ? 'border-emerald-200 dark:border-emerald-800' : 'border-gray-100 dark:border-slate-800'
+                    )}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={cn('w-9 h-9 rounded-full flex items-center justify-center', isOnline ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-primary/10')}>
+                          <User size={16} className={isOnline ? 'text-emerald-600' : 'text-primary'} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{u.name}</p>
+                          <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{u.email}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {isOnline ? (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
+                              <Wifi size={10} />Online
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                              <WifiOff size={10} />Offline
+                            </span>
+                          )}
+                          {activeToday && (
+                            <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                              Active Today
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{s.userName}</p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{s.userEmail}</p>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                          <p className="text-lg font-black text-primary">{stats?.contactsCreated ?? 0}</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Created</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                          <p className="text-lg font-black text-amber-500">{stats?.contactsEdited ?? 0}</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Edited</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
+                          <p className="text-lg font-black text-red-500">{stats?.contactsDeleted ?? 0}</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Deleted</p>
+                        </div>
                       </div>
-                      {onlineUsers.some((o: any) => o.user_id === s.userId) && (
-                        <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">
-                          <Wifi size={10} />Online
-                        </span>
+                      {stats?.loginTime && (
+                        <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500 flex items-center gap-1">
+                          <LogIn size={10} /> Login: {new Date(stats.loginTime).toLocaleTimeString()}
+                        </p>
                       )}
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
-                        <p className="text-lg font-black text-primary">{s.contactsCreated}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">Created</p>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
-                        <p className="text-lg font-black text-amber-500">{s.contactsEdited}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">Edited</p>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-slate-800 rounded-xl py-2">
-                        <p className="text-lg font-black text-red-500">{s.contactsDeleted}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">Deleted</p>
-                      </div>
-                    </div>
-                    {s.loginTime && (
-                      <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500 flex items-center gap-1">
-                        <LogIn size={10} /> Login: {new Date(s.loginTime).toLocaleTimeString()}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Activity log table */}
           <div>

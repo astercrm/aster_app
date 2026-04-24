@@ -868,23 +868,54 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         ) : paginatedContacts.map(contact => (
           <div key={contact.id} className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <p className="font-bold text-gray-900 dark:text-white">{contact.customerName || '—'}</p>
                 <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{contact.ctn || ''} · {contact.date || ''}</p>
+                {contact.customerContactNumber && (
+                  <p className="text-xs text-primary font-medium mt-0.5">{contact.customerContactNumber}</p>
+                )}
               </div>
               <span className={cn("shrink-0 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase",
                 contact.currentStatus === 'Completed' ? "bg-primary/10 text-primary" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
               )}>{contact.currentStatus}</span>
             </div>
-            <div className="px-3 py-2.5 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center justify-end gap-1">
-              <button onClick={() => handleViewContact(contact)} className="p-2.5 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"><Eye size={16} /></button>
-              {perms.canEditContact && (
-                <button onClick={() => handleEditContact(contact)} className="p-2.5 rounded-xl bg-primary text-white shadow-sm shadow-primary/20"><Edit2 size={16} /></button>
+            <div className="px-3 py-2.5 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center gap-2">
+              {/* WhatsApp */}
+              {contact.customerContactNumber && (
+                <a
+                  href={`https://wa.me/${contact.customerContactNumber.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-500 text-white text-xs font-bold shadow-sm shadow-green-500/20 active:scale-95 transition-transform"
+                >
+                  <MessageSquare size={14} /> WhatsApp
+                </a>
               )}
+              {/* Call */}
+              {contact.customerContactNumber && (
+                <a
+                  href={`tel:${contact.customerContactNumber.replace(/\s/g, '')}`}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-sm shadow-primary/20 active:scale-95 transition-transform"
+                >
+                  <Phone size={14} /> Call
+                </a>
+              )}
+              <div className="ml-auto flex items-center gap-1">
+                {perms.canToggleFavorite && (
+                  <button onClick={(e) => handleToggleFavorite(contact.id, e)} className={cn("p-2 rounded-xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-700 shadow-sm", contact.isFavorite ? "text-amber-400" : "text-gray-400")}>
+                    <Star size={15} className={contact.isFavorite ? "fill-current" : ""} />
+                  </button>
+                )}
+                <button onClick={() => handleViewContact(contact)} className="p-2 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"><Eye size={15} /></button>
+                {perms.canEditContact && (
+                  <button onClick={() => handleEditContact(contact)} className="p-2 rounded-xl bg-white dark:bg-slate-700 shadow-sm text-gray-600 dark:text-slate-300 border border-gray-100 dark:border-slate-600"><Edit2 size={15} /></button>
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
+
 
       {/* ── Contact Modal ──────────────────────────────────────────────────── */}
       <AnimatePresence>

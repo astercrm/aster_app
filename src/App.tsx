@@ -61,29 +61,23 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
-// ✅ Heartbeat — sends every 2 minutes to track online users
+// ✅ Heartbeat — sends immediately on login, then every 2 minutes to track online users
 useEffect(() => {
   if (!user) return;
-  
-  // Log login activity
-  api.logActivity({
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
-    action: 'login',
-    details: 'User opened app',
-  });
 
-  // Send heartbeat every 2 minutes
-  const interval = setInterval(() => {
+  // Send heartbeat immediately so user shows as "Online Now" right away
+  const sendHeartbeat = () => {
     api.logActivity({
       userId: user.id,
       userName: user.name,
       userEmail: user.email,
       action: 'heartbeat',
       details: '',
-    });
-  }, 2 * 60 * 1000);
+    }).catch(() => {});
+  };
+
+  sendHeartbeat(); // immediate
+  const interval = setInterval(sendHeartbeat, 2 * 60 * 1000); // then every 2 min
 
   return () => clearInterval(interval);
 }, [user]);
