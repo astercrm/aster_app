@@ -897,7 +897,9 @@ async function startServer() {
 
   // ── HEALTH CHECK ──────────────────────────────────────────────────────────
   // Must return HTTP 200 — Railway uses this to confirm the server is up.
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok' });
+  });
 
   // ── VITE DEV SERVER ───────────────────────────────────────────────────────
 
