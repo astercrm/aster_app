@@ -895,6 +895,10 @@ async function startServer() {
     res.json(Object.values(users));
   });
 
+  // ── HEALTH CHECK ──────────────────────────────────────────────────────────
+  // Must return HTTP 200 — Railway uses this to confirm the server is up.
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
+
   // ── VITE DEV SERVER ───────────────────────────────────────────────────────
 
   if (process.env.NODE_ENV !== 'production') {
@@ -923,8 +927,10 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
-    console.log(`\n✅ ASTER app running at: http://localhost:${PORT}\n`);
+  // Bind to 0.0.0.0 so Railway (and other cloud hosts) can route traffic to the container.
+  // Binding only to 'localhost' makes the server unreachable from outside the container.
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n✅ ASTER app running at: http://0.0.0.0:${PORT}\n`);
   });
 }
 
