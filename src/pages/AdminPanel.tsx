@@ -71,7 +71,15 @@ export default function AdminPanel() {
         (a.dates || []).includes(todayStr)
       ));
     } catch (err: any) {
-      setActivityError(err.message || 'Failed to load activity data.');
+      const msg: string = err.message || 'Failed to load activity data.';
+      // Give clear fix instructions based on common Supabase errors
+      if (msg.includes('does not exist') || msg.includes('42P01')) {
+        setActivityError('❌ Tables missing in Supabase. Please run the setup SQL in your Supabase SQL Editor to create user_activity and attendance tables.');
+      } else if (msg.includes('row-level security') || msg.includes('42501')) {
+        setActivityError('❌ Supabase RLS is blocking data. Please disable RLS on user_activity and attendance tables, OR add SUPABASE_SERVICE_ROLE_KEY to Railway environment variables.');
+      } else {
+        setActivityError(`❌ ${msg}`);
+      }
     } finally {
       setIsActivityLoading(false);
     }

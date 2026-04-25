@@ -3,7 +3,7 @@ import * as Excel from 'exceljs';
 import {
   Search, Filter, Plus, MoreVertical, Phone, MessageSquare, Mail, MapPin, Building2,
   ChevronLeft, ChevronRight, Download, Upload, Star, Trash2, Edit2, X,
-  CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle
+  CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle, Calendar
 } from 'lucide-react';
 import { generateMockContacts, serviceTypes, staff, branches, statuses, paymentStatuses } from '../mockData';
 import { cn } from '../lib/utils';
@@ -54,6 +54,9 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [viewingContact, setViewingContact] = useState<Contact | null>(null);
@@ -195,44 +198,60 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     return colIndex !== -1 ? String(row[colIndex] || '') : '';
   };
 
+  // Parse a date string like "26-Jan-2026" or "2026-01-26" to a Date object
+  const parseContactDate = (dateStr: string | undefined): Date | null => {
+    if (!dateStr) return null;
+    // Already ISO format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(dateStr);
+    // "26-Jan-2026" format
+    try {
+      const [day, mon, year] = dateStr.split('-');
+      const d = new Date(`${mon} ${day} ${year}`);
+      return isNaN(d.getTime()) ? null : d;
+    } catch { return null; }
+  };
+
   const filteredContacts = useMemo(() => {
     const query = (searchQuery || '').toLowerCase().trim();
-    if (!query) return contacts;
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
+
     return contacts.filter(contact => {
-      // Helper: safely convert any field to lowercase string
+      // ── Date range filter ──
+      if (fromDate || toDate) {
+        const contactDate = parseContactDate(contact.date);
+        if (!contactDate) return false;
+        if (fromDate && contactDate < fromDate) return false;
+        if (toDate && contactDate > toDate) return false;
+      }
+      // ── Text search ──
+      if (!query) return true;
       const s = (v: any) => String(v || '').toLowerCase();
       return (
-        // Identity / core fields
         s(contact.ctn).includes(query) ||
         s(contact.customerName).includes(query) ||
         s(contact.customerContactNumber).includes(query) ||
         s(contact.orderNumber).includes(query) ||
-        // Staff fields
         s(contact.teleCallingStaff).includes(query) ||
         s(contact.technicalStaff).includes(query) ||
-        // Date fields — match day, month name, or year typed by user
         s(contact.date).includes(query) ||
         s(contact.claimApplyDate).includes(query) ||
         s(contact.followUpDate).includes(query) ||
         s(contact.receiveDate).includes(query) ||
         s(contact.technicalPaidDate).includes(query) ||
         s(contact.teleCallingPaidDate).includes(query) ||
-        // Lead / status
         s(contact.entryLeads).includes(query) ||
         s(contact.currentStatus).includes(query) ||
         s(contact.customerRequirement).includes(query) ||
-        // Notes / remarks
         s(contact.detailsNotes).includes(query) ||
         s(contact.remarks).includes(query) ||
         s(contact.technicalRemarks).includes(query) ||
         s(contact.teleCallingRemarks).includes(query) ||
-        // Payment / financial
         s(contact.serviceCharges).includes(query) ||
         s(contact.paymentStatus).includes(query) ||
         s(contact.pdfFileSend).includes(query) ||
         s(contact.receiveAmount).includes(query) ||
         s(contact.transactionId).includes(query) ||
-        // Salary / share
         s(contact.technicalSharePercent).includes(query) ||
         s(contact.technicalSalaryAmount).includes(query) ||
         s(contact.technicalTotalAmount).includes(query) ||
@@ -241,7 +260,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         s(contact.teleTotalAmount).includes(query)
       );
     });
-  }, [searchQuery, contacts]);
+  }, [searchQuery, contacts, dateFrom, dateTo]);
 
   const totalPages = Math.ceil(filteredContacts.length / ITEMS_PER_PAGE);
   const paginatedContacts = filteredContacts.slice(
@@ -687,28 +706,91 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         )}
       </AnimatePresence>
 
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search by name, CTN, phone, date, month, year, status, staff, amount..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:focus:bg-slate-800 transition-all outline-none dark:text-white"
-          />
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search by name, CTN, phone, date, month, year, status, staff, amount..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl py-2.5 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/20 focus:bg-white dark:focus:bg-slate-800 transition-all outline-none dark:text-white"
+            />
+          </div>
+          <button
+            onClick={() => setShowDateFilter(v => !v)}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap border',
+              showDateFilter || dateFrom || dateTo
+                ? 'bg-primary text-white border-primary shadow-md shadow-primary/20'
+                : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700'
+            )}
+          >
+            <Calendar size={16} />
+            Date Filter
+            {(dateFrom || dateTo) && (
+              <span className="ml-1 w-2 h-2 rounded-full bg-white inline-block" />
+            )}
+          </button>
+          <AnimatePresence>
+            {selectedIds.size > 0 && userRole === 'Admin' && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={handleBulkDelete}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-600 rounded-xl text-sm font-bold text-white hover:bg-red-700 transition-all shadow-md shadow-red-500/20 whitespace-nowrap"
+              >
+                <Trash2 size={16} /> Delete Selected ({selectedIds.size})
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* Date Range Filter Panel */}
         <AnimatePresence>
-          {selectedIds.size > 0 && userRole === 'Admin' && (
-            <motion.button
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-4 py-2.5 bg-red-600 rounded-xl text-sm font-bold text-white hover:bg-red-700 transition-all shadow-md shadow-red-500/20 whitespace-nowrap"
+          {showDateFilter && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
             >
-              <Trash2 size={16} /> Delete Selected ({selectedIds.size})
-            </motion.button>
+              <div className="flex flex-col sm:flex-row gap-3 pt-1 pb-1 items-end">
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">From Date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={e => { setDateFrom(e.target.value); setCurrentPage(1); }}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white"
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">To Date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={e => { setDateTo(e.target.value); setCurrentPage(1); }}
+                    className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white"
+                  />
+                </div>
+                {(dateFrom || dateTo) && (
+                  <button
+                    onClick={() => { setDateFrom(''); setDateTo(''); setCurrentPage(1); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors whitespace-nowrap"
+                  >
+                    <X size={14} /> Clear Filter
+                  </button>
+                )}
+                {(dateFrom || dateTo) && (
+                  <p className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap pb-2">
+                    {filteredContacts.length} result{filteredContacts.length !== 1 ? 's' : ''} found
+                  </p>
+                )}
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
@@ -809,7 +891,30 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   {fv('teleCallingRemarks') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[140px] truncate">{contact.teleCallingRemarks || '—'}</td>}
                   {fv('teleTotalAmount') && <td className="px-3 py-2 font-bold text-primary">{contact.teleTotalAmount ? `₹${contact.teleTotalAmount}` : '—'}</td>}
                   <td className="px-3 py-2 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* WhatsApp */}
+                      {contact.customerContactNumber && (
+                        <a
+                          href={`https://wa.me/${contact.customerContactNumber.replace(/\D/g, '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500 text-white text-[11px] font-bold hover:bg-green-600 transition-colors shadow-sm shadow-green-500/20"
+                        >
+                          <MessageSquare size={12} /> WA
+                        </a>
+                      )}
+                      {/* Call */}
+                      {contact.customerContactNumber && (
+                        <a
+                          href={`tel:${contact.customerContactNumber.replace(/\s/g, '')}`}
+                          onClick={e => e.stopPropagation()}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-primary text-white text-[11px] font-bold hover:bg-primary/90 transition-colors shadow-sm shadow-primary/20"
+                        >
+                          <Phone size={12} /> Call
+                        </a>
+                      )}
+                      <div className="w-px h-4 bg-gray-200 dark:bg-slate-700 mx-0.5" />
                       {perms.canToggleFavorite && (
                         <button onClick={(e) => handleToggleFavorite(contact.id, e)} className={cn("p-1 rounded-lg transition-colors", contact.isFavorite ? "text-amber-400" : "text-gray-400 hover:text-amber-400")}>
                           <Star size={14} className={contact.isFavorite ? "fill-current" : ""} />
@@ -1111,6 +1216,36 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                             </p>
                           )}
                         </div>
+
+                        {/* Screenshot upload inline — visible to all roles with screenshot permission */}
+                        {showScreenshotSection && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Screenshot</label>
+                            {modalFormData.screenShotImage ? (
+                              <div className="relative inline-flex items-start gap-2">
+                                <img
+                                  src={modalFormData.screenShotImage}
+                                  alt="Screenshot"
+                                  className="rounded-xl h-10 w-16 object-cover cursor-pointer border border-gray-200 dark:border-slate-700"
+                                  onClick={() => setViewingImage(modalFormData.screenShotImage!)}
+                                />
+                                {fe('screenShotImage') && (
+                                  <button type="button" onClick={handleDeleteScreenshot} className="p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors">
+                                    <X size={10} />
+                                  </button>
+                                )}
+                              </div>
+                            ) : fe('screenShotImage') ? (
+                              <label className={cn('flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-700 cursor-pointer hover:border-primary/50 transition-colors text-xs text-gray-400 dark:text-slate-500', isUploadingScreenshot && 'opacity-60 cursor-wait')}>
+                                {isUploadingScreenshot ? <Loader2 size={14} className="animate-spin text-primary" /> : <ImageIcon size={14} />}
+                                {isUploadingScreenshot ? 'Uploading...' : 'Upload Screenshot'}
+                                <input type="file" className="hidden" accept="image/*" onChange={handleScreenshotUpload} disabled={isUploadingScreenshot} />
+                              </label>
+                            ) : (
+                              <p className="text-xs text-gray-400 dark:text-slate-500 py-2">No screenshot.</p>
+                            )}
+                          </div>
+                        )}
 
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Date</label>
