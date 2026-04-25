@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import bcrypt from 'bcrypt';
 import nodemailer from 'nodemailer';
 import sharp from 'sharp';
+import compression from 'compression';
 dotenv.config({ path: '.env.local' });
 
 const __filename = fileURLToPath(import.meta.url);
@@ -107,8 +108,17 @@ function isBcryptHash(str: string): boolean {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const saltRounds = 10;
+
+  // ── GZIP COMPRESSION ────────────────────────────────────────────────────────
+  // Compresses all responses — reduces transfer size by ~70-80%
+  // Critical for performance when many users are online
+  app.use(compression({
+    level: 6,           // balanced speed vs compression ratio
+    threshold: 1024,    // only compress responses > 1KB
+  }));
+
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -895,8 +905,20 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    // Serve static assets with long cache (JS/CSS have hashed filenames so safe to cache 1 year)
+    app.use(express.static(distPath, {
+      maxAge: '1y',           // cache JS/CSS/images for 1 year
+      etag: true,             // allow conditional requests
+      lastModified: true,
+      setHeaders(res, filePath) {
+        // HTML must never be cached (it's the entry point, always fresh)
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+      },
+    }));
     app.get('*', (req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

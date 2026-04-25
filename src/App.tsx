@@ -35,14 +35,14 @@ export default function App() {
     }
   }, [user]);
 
-  // ── Real-time sync: poll every 30 seconds so all open sessions stay in sync ──
+  // ── Real-time sync: poll every 60 seconds (reduced from 30s to cut server load with many users) ──
   useEffect(() => {
     if (!user) return;
     const poll = setInterval(() => {
       api.getContacts()
         .then(fresh => setContacts(fresh))
         .catch(() => {}); // silently ignore transient errors
-    }, 30_000);
+    }, 60_000);
     return () => clearInterval(poll);
   }, [user]);
 
@@ -61,11 +61,10 @@ export default function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
-// ✅ Heartbeat — sends immediately on login, then every 2 minutes to track online users
+// ✅ Heartbeat — sends immediately on login, then every 3 minutes
 useEffect(() => {
   if (!user) return;
 
-  // Send heartbeat immediately so user shows as "Online Now" right away
   const sendHeartbeat = () => {
     api.logActivity({
       userId: user.id,
@@ -76,8 +75,8 @@ useEffect(() => {
     }).catch(() => {});
   };
 
-  sendHeartbeat(); // immediate
-  const interval = setInterval(sendHeartbeat, 2 * 60 * 1000); // then every 2 min
+  sendHeartbeat(); // immediate on login
+  const interval = setInterval(sendHeartbeat, 3 * 60 * 1000); // every 3 min
 
   return () => clearInterval(interval);
 }, [user]);
