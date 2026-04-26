@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ShieldCheck, UserPlus, Search, Edit2, Trash2, User,
   Shield, Lock, Users, TrendingUp, Activity, Clock, Wifi, WifiOff,
-  RefreshCw, LogIn, FilePlus, FileEdit, AlertCircle,
+  RefreshCw, LogIn, FilePlus, FileEdit, AlertCircle, CalendarDays,
+  ChevronLeft, ChevronRight, CheckCircle2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
@@ -23,7 +24,7 @@ export default function AdminPanel() {
   const [isSaving, setIsSaving] = useState(false);
 
   // ── Activity state ────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'users' | 'activity'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'attendance'>('users');
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activitySummary, setActivitySummary] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
@@ -31,14 +32,26 @@ export default function AdminPanel() {
   const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [activityError, setActivityError] = useState<string | null>(null);
 
+  // ── Attendance tab state ──────────────────────────────────────────────────
+  const now = new Date();
+  const [attMonth, setAttMonth] = useState(now.getMonth() + 1);
+  const [attYear, setAttYear] = useState(now.getFullYear());
+  const [attRecords, setAttRecords] = useState<any[]>([]);
+  const [isAttLoading, setIsAttLoading] = useState(false);
+  const [attError, setAttError] = useState<string | null>(null);
+  const [attRoleFilter, setAttRoleFilter] = useState<string>('All');
+
   useEffect(() => { fetchUsers(); }, []);
   useEffect(() => {
     if (activeTab !== 'activity') return;
     fetchActivity();
-    // Auto-refresh every 30 seconds while on activity tab
     const timer = setInterval(fetchActivity, 30_000);
     return () => clearInterval(timer);
   }, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== 'attendance') return;
+    fetchAttendance();
+  }, [activeTab, attMonth, attYear]);
 
   const fetchUsers = async () => {
     try {
@@ -82,6 +95,26 @@ export default function AdminPanel() {
       }
     } finally {
       setIsActivityLoading(false);
+    }
+  };
+
+  const fetchAttendance = async () => {
+    setIsAttLoading(true);
+    setAttError(null);
+    try {
+      const data = await api.getAttendanceSummary(attMonth, attYear);
+      setAttRecords(data || []);
+    } catch (err: any) {
+      const msg: string = err.message || 'Failed to load attendance data.';
+      if (msg.includes('does not exist') || msg.includes('42P01')) {
+        setAttError('❌ The "attendance" table does not exist. Please run the setup SQL in Supabase.');
+      } else if (msg.includes('row-level security') || msg.includes('42501')) {
+        setAttError('❌ Supabase RLS is blocking. Disable RLS on attendance table or add SUPABASE_SERVICE_ROLE_KEY.');
+      } else {
+        setAttError(`❌ ${msg}`);
+      }
+    } finally {
+      setIsAttLoading(false);
     }
   };
 
@@ -184,8 +217,8 @@ export default function AdminPanel() {
       </header>
 
       {/* ── TABS ──────────────────────────────────────────────────────────── */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl w-fit">
-        {(['users', 'activity'] as const).map(tab => (
+      <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl w-fit flex-wrap">
+        {(['users', 'activity', 'attendance'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -196,8 +229,8 @@ export default function AdminPanel() {
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
             )}
           >
-            {tab === 'users' ? <Users size={16} /> : <Activity size={16} />}
-            {tab === 'users' ? 'Users' : 'Employee Activity'}
+            {tab === 'users' ? <Users size={16} /> : tab === 'activity' ? <Activity size={16} /> : <CalendarDays size={16} />}
+            {tab === 'users' ? 'Users' : tab === 'activity' ? 'Employee Activity' : 'Attendance'}
           </button>
         ))}
       </div>
@@ -493,6 +526,210 @@ export default function AdminPanel() {
           </div>
         </div>
       )} {/* end activity tab */}
+
+      {/* ── ATTENDANCE SECTION ──────────────────────────────────────────────── */}
+      {activeTab === 'attendance' && (() => {
+        const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const daysInMonth = new Date(attYear, attMonth, 0).getDate();
+        const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+        // Build role map from users
+        const userRoleMap: Record<string, string> = {};
+        users.forEach((u: any) => { userRoleMap[u.id] = u.role; });
+
+        // Merge users with their attendance — show ALL users, not just those with records
+        const mergedData = users
+          .filter((u: any) => attRoleFilter === 'All' || u.role === attRoleFilter)
+          .map((u: any) => {
+            const record = attRecords.find((r: any) => r.userId === u.id);
+            return {
+              userId: u.id,
+              userName: u.name || u.email,
+              userEmail: u.email,
+              role: u.role,
+              presentDays: record?.presentDays || 0,
+              dates: (record?.dates || []).map((d: string) => d.slice(8, 10)), // extract day number as string
+            };
+          })
+          .sort((a: any, b: any) => b.presentDays - a.presentDays);
+
+        const totalWorkingDays = daysInMonth;
+
+        const handlePrevMonth = () => {
+          if (attMonth === 1) { setAttMonth(12); setAttYear(attYear - 1); }
+          else setAttMonth(attMonth - 1);
+        };
+        const handleNextMonth = () => {
+          if (attMonth === 12) { setAttMonth(1); setAttYear(attYear + 1); }
+          else setAttMonth(attMonth + 1);
+        };
+
+        return (
+          <div className="space-y-6">
+            {/* Header controls */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <button onClick={handlePrevMonth} className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                  <ChevronLeft size={18} className="text-gray-600 dark:text-slate-300" />
+                </button>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={attMonth}
+                    onChange={e => setAttMonth(Number(e.target.value))}
+                    className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none shadow-sm"
+                  >
+                    {MONTH_NAMES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  </select>
+                  <select
+                    value={attYear}
+                    onChange={e => setAttYear(Number(e.target.value))}
+                    className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none shadow-sm"
+                  >
+                    {[attYear - 1, attYear, attYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </div>
+                <button onClick={handleNextMonth} className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                  <ChevronRight size={18} className="text-gray-600 dark:text-slate-300" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Role:</span>
+                <select
+                  value={attRoleFilter}
+                  onChange={e => setAttRoleFilter(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none shadow-sm"
+                >
+                  <option value="All">All Roles</option>
+                  {ALL_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <button
+                  onClick={fetchAttendance}
+                  disabled={isAttLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-700 dark:text-slate-300 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-60"
+                >
+                  <RefreshCw size={15} className={isAttLoading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Stats bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: 'Total Staff', value: mergedData.length, color: 'text-primary', bg: 'bg-primary/5' },
+                { label: 'Present Today', value: mergedData.filter((u: any) => u.dates.includes(String(new Date().getDate()).padStart(2, '0'))).length, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+                { label: 'Avg Attendance', value: mergedData.length > 0 ? `${Math.round(mergedData.reduce((s: number, u: any) => s + u.presentDays, 0) / mergedData.length)}d` : '0d', color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                { label: 'Days in Month', value: daysInMonth, color: 'text-gray-700 dark:text-gray-300', bg: 'bg-gray-100 dark:bg-slate-800' },
+              ].map(stat => (
+                <div key={stat.label} className={cn('rounded-2xl p-4', stat.bg)}>
+                  <p className={cn('text-2xl font-black', stat.color)}>{stat.value}</p>
+                  <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {attError && (
+              <div className="flex items-center gap-3 px-4 py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm font-medium">
+                <AlertCircle size={16} />{attError}
+              </div>
+            )}
+
+            {/* Attendance Grid */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left" style={{ minWidth: `${300 + daysInMonth * 36}px` }}>
+                  <thead>
+                    <tr className="bg-gray-50/50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800">
+                      <th className="px-4 py-3 text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider sticky left-0 z-10 bg-gray-50 dark:bg-slate-800 min-w-[180px]">Employee</th>
+                      <th className="px-3 py-3 text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider sticky left-[180px] z-10 bg-gray-50 dark:bg-slate-800 min-w-[70px]">Role</th>
+                      <th className="px-3 py-3 text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-wider sticky left-[250px] z-10 bg-gray-50 dark:bg-slate-800 min-w-[50px] border-r border-gray-200 dark:border-slate-700">Days</th>
+                      {dayNumbers.map(d => (
+                        <th key={d} className="px-0 py-3 text-center text-[10px] font-bold text-gray-400 dark:text-slate-500 w-8 min-w-[32px]">
+                          {d}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
+                    {isAttLoading ? (
+                      <tr><td colSpan={3 + daysInMonth} className="px-4 py-12 text-center text-gray-400 text-sm">Loading attendance...</td></tr>
+                    ) : mergedData.length === 0 ? (
+                      <tr><td colSpan={3 + daysInMonth} className="px-4 py-12 text-center text-gray-400 text-sm">No attendance records found.</td></tr>
+                    ) : mergedData.map((emp: any) => {
+                      const attendancePercent = totalWorkingDays > 0 ? Math.round((emp.presentDays / totalWorkingDays) * 100) : 0;
+                      return (
+                        <tr key={emp.userId} className="group hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-2.5 sticky left-0 z-[5] bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[180px]">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <User size={13} className="text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{emp.userName}</p>
+                                <p className="text-[10px] text-gray-400 dark:text-slate-500 truncate">{emp.userEmail}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 sticky left-[180px] z-[5] bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[70px]">
+                            <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', ROLE_BADGE_COLORS[emp.role as AppRole] || 'bg-gray-100 text-gray-600')}>
+                              {emp.role}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 sticky left-[250px] z-[5] bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[50px] border-r border-gray-100 dark:border-slate-800">
+                            <div className="text-center">
+                              <span className={cn('text-sm font-black', attendancePercent >= 80 ? 'text-emerald-600' : attendancePercent >= 50 ? 'text-amber-500' : 'text-red-500')}>
+                                {emp.presentDays}
+                              </span>
+                              <p className="text-[9px] text-gray-400">{attendancePercent}%</p>
+                            </div>
+                          </td>
+                          {dayNumbers.map(d => {
+                            const dayStr = String(d).padStart(2, '0');
+                            const isPresent = emp.dates.includes(dayStr);
+                            const isToday = d === new Date().getDate() && attMonth === (new Date().getMonth() + 1) && attYear === new Date().getFullYear();
+                            return (
+                              <td key={d} className="px-0 py-2.5 text-center w-8 min-w-[32px]">
+                                {isPresent ? (
+                                  <span className={cn('inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold', isToday ? 'bg-primary text-white shadow-sm shadow-primary/30' : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400')}>
+                                    ✓
+                                  </span>
+                                ) : (
+                                  <span className={cn('inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px]', isToday ? 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400 ring-2 ring-primary/30' : 'text-gray-300 dark:text-slate-700')}>
+                                    •
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Legend */}
+              <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50 flex items-center gap-6 text-xs text-gray-500 dark:text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex w-5 h-5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 items-center justify-center text-[9px] font-bold">✓</span>
+                  Present
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex w-5 h-5 rounded-full text-gray-300 dark:text-slate-700 items-center justify-center text-[9px]">•</span>
+                  Absent
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex w-5 h-5 rounded-full bg-primary text-white items-center justify-center text-[9px] font-bold">✓</span>
+                  Today
+                </div>
+                <div className="ml-auto text-[10px] text-gray-400 dark:text-slate-500">
+                  {MONTH_NAMES[attMonth - 1]} {attYear} · {mergedData.length} employees
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
 
       {isModalOpen && (

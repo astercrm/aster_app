@@ -684,7 +684,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           )}
           {perms.canCreateContact && (
             <button onClick={handleAddContact} className="flex items-center gap-2 px-4 py-2 bg-primary rounded-xl text-sm font-bold text-white hover:bg-primary/90 transition-all shadow-md shadow-primary/20">
-              <Plus size={18} /> Lead Contact
+              <Plus size={18} /> Add New Lead
             </button>
           )}
         </div>
@@ -1040,7 +1040,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
               <div className="px-6 py-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gray-50/50 dark:bg-slate-800/50 shrink-0">
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {viewingContact ? 'View Lead' : editingContact ? 'Edit Lead' : 'New Lead Contact'}
+                    {viewingContact ? 'View Lead' : editingContact ? 'Edit Lead' : 'Add New Lead'}
                   </h2>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
                     {viewingContact ? 'Read-only view' : `Role: ${userRole} — you can edit highlighted fields`}
@@ -1070,7 +1070,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px]">1</span>
-                        Basic Information
+                        Telecalling Staff Entry
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {fv('ctn') && (
@@ -1123,7 +1123,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         )}
                         {fv('customerContactNumber') && (
                           <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Phone</label>
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Mobile</label>
                             <input name="customerContactNumber" readOnly={!fe('customerContactNumber')} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className={inputCls('customerContactNumber')} />
                           </div>
                         )}
@@ -1186,7 +1186,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center text-[10px]">2</span>
-                        Salary & Payment
+                        Technical Staff Entry
                         {!perms.editableFields.includes('salary_amount') && <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-full">View Only</span>}
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
