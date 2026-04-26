@@ -69,7 +69,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
-  const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'staff' | 'branches' | 'paymentStatuses'>('serviceTypes');
+  const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'teleCallingStaff' | 'technicalStaff' | 'branches' | 'paymentStatuses'>('serviceTypes');
   const [newDropdownItem, setNewDropdownItem] = useState('');
   // Duplicate warning state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -84,7 +84,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   };
   const [customServiceTypes, setCustomServiceTypes] = useState<string[]>(() => loadList('aster_serviceTypes', serviceTypes));
   const [customStatuses, setCustomStatuses] = useState<string[]>(() => loadList('aster_statuses', statuses));
-  const [customStaff, setCustomStaff] = useState<string[]>(() => loadList('aster_staff', staff));
+  const [customTeleCallingStaff, setCustomTeleCallingStaff] = useState<string[]>(() => loadList('aster_teleCallingStaff', staff));
+  const [customTechnicalStaff, setCustomTechnicalStaff] = useState<string[]>(() => loadList('aster_technicalStaff', staff));
   const [customBranches, setCustomBranches] = useState<string[]>(() => loadList('aster_branches', branches));
   const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(() => loadList('aster_paymentStatuses', paymentStatuses));
   const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch { } };
@@ -92,7 +93,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; storageKey: string }> = {
     serviceTypes: { label: 'Service Types (Customer Requirement)', list: customServiceTypes, setList: (l) => { setCustomServiceTypes(l); saveList('aster_serviceTypes', l); }, storageKey: 'aster_serviceTypes' },
     statuses: { label: 'Current Status Options', list: customStatuses, setList: (l) => { setCustomStatuses(l); saveList('aster_statuses', l); }, storageKey: 'aster_statuses' },
-    staff: { label: 'Staff Names', list: customStaff, setList: (l) => { setCustomStaff(l); saveList('aster_staff', l); }, storageKey: 'aster_staff' },
+    teleCallingStaff: { label: 'Tele Calling Staff', list: customTeleCallingStaff, setList: (l) => { setCustomTeleCallingStaff(l); saveList('aster_teleCallingStaff', l); }, storageKey: 'aster_teleCallingStaff' },
+    technicalStaff: { label: 'Technical Staff', list: customTechnicalStaff, setList: (l) => { setCustomTechnicalStaff(l); saveList('aster_technicalStaff', l); }, storageKey: 'aster_technicalStaff' },
     branches: { label: 'Branches / Locations', list: customBranches, setList: (l) => { setCustomBranches(l); saveList('aster_branches', l); }, storageKey: 'aster_branches' },
     paymentStatuses: { label: 'Payment Status Options', list: customPaymentStatuses, setList: (l) => { setCustomPaymentStatuses(l); saveList('aster_paymentStatuses', l); }, storageKey: 'aster_paymentStatuses' },
   };
@@ -1110,13 +1112,13 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         {fv('teleCallingStaff') && (
                           <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Calling Staff</label>
-                            <input name="teleCallingStaff" list="staffList" readOnly={!fe('teleCallingStaff')} value={modalFormData.teleCallingStaff || ''} onChange={handleModalInputChange} className={inputCls('teleCallingStaff')} />
+                            <input name="teleCallingStaff" list="teleCallingStaffList" readOnly={!fe('teleCallingStaff')} value={modalFormData.teleCallingStaff || ''} onChange={handleModalInputChange} className={inputCls('teleCallingStaff')} />
                           </div>
                         )}
                         {fv('technicalStaff') && (
                           <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Staff</label>
-                            <input name="technicalStaff" list="staffList" readOnly={!fe('technicalStaff')} value={modalFormData.technicalStaff || ''} onChange={handleModalInputChange} className={inputCls('technicalStaff')} />
+                            <input name="technicalStaff" list="technicalStaffList" readOnly={!fe('technicalStaff')} value={modalFormData.technicalStaff || ''} onChange={handleModalInputChange} className={inputCls('technicalStaff')} />
                           </div>
                         )}
                         {fv('customerContactNumber') && (
@@ -1384,7 +1386,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       <datalist id="statusesList">{customStatuses.map(s => <option key={s} value={s} />)}</datalist>
       <datalist id="entryLeadsList"><option value="New" /><option value="Re_Entry" /></datalist>
       <datalist id="paymentStatusesList">{customPaymentStatuses.map(s => <option key={s} value={s} />)}</datalist>
-      <datalist id="staffList">{customStaff.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="teleCallingStaffList">{customTeleCallingStaff.map(s => <option key={s} value={s} />)}</datalist>
+      <datalist id="technicalStaffList">{customTechnicalStaff.map(s => <option key={s} value={s} />)}</datalist>
       <datalist id="branchesList">{customBranches.map(s => <option key={s} value={s} />)}</datalist>
 
       {/* Dropdown Manager (Admin only) */}
@@ -1406,7 +1409,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                 {(Object.keys(dropdownConfig) as Array<typeof dropdownManagerTab>).map(tab => (
                   <button key={tab} onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); }}
                     className={cn("px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all", dropdownManagerTab === tab ? "bg-primary text-white" : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800")}>
-                    {dropdownConfig[tab].label.split(' ')[0]}
+                    {dropdownConfig[tab].label.split(' ').slice(0, 2).join(' ')}
                   </button>
                 ))}
               </div>
