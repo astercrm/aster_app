@@ -27,15 +27,30 @@ export default defineConfig(({ mode }) => {
         output: {
           // Split large libraries into separate lazy-loaded chunks
           manualChunks(id) {
-            // ⚠️ ORDER MATTERS: check specific libraries BEFORE generic "react"
-            // because lucide-react, recharts, etc. contain "react" in their path.
+            // ⚠️ React core MUST be checked FIRST — many libs (recharts,
+            // lucide-react, framer-motion) transitively import react/react-dom.
+            // If we match those libs first, Rollup may pull React internals
+            // (forwardRef, createElement, etc.) into their chunk, causing
+            // "Cannot read properties of undefined" at runtime.
 
-            // Lucide icons — large icon set (must be before 'react' check!)
+            // React core — always needed, load first
+            if (
+              id.includes('node_modules/react/')
+              || id.includes('node_modules/react-dom/')
+              || id.includes('node_modules/react-router-dom/')
+              || id.includes('node_modules/react-router/')
+              || id.includes('node_modules/scheduler/')
+            ) {
+              return 'react-core';
+            }
+            // Lucide icons — large icon set
             if (id.includes('node_modules/lucide-react')) {
               return 'icons';
             }
-            // Recharts — only needed on Dashboard
-            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            // Recharts + d3 — only needed on Dashboard
+            if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')
+                || id.includes('node_modules/victory') || id.includes('node_modules/internmap')
+                || id.includes('node_modules/decimal.js')) {
               return 'charts';
             }
             // Animation library — split from core
@@ -45,10 +60,6 @@ export default defineConfig(({ mode }) => {
             // ExcelJS is huge — only needed for bulk upload/download (Admin)
             if (id.includes('node_modules/exceljs')) {
               return 'excel';
-            }
-            // React core — always needed, load first
-            if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-router-dom')) {
-              return 'react-core';
             }
             // Everything else from node_modules
             if (id.includes('node_modules')) {
