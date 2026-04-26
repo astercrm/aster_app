@@ -1253,24 +1253,40 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Receive Date</label>
                           <input type="date" name="receiveDate" readOnly={!fe('receiveDate')} value={modalFormData.receiveDate || ''} onChange={handleModalInputChange} className={inputCls('receiveDate')} />
                         </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Total Amount</label>
-                          <input name="teleTotalAmount" readOnly value={modalFormData.teleTotalAmount || ''} className={inputCls('teleTotalAmount')} />
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Total Amount</label>
-                          <input name="technicalTotalAmount" readOnly value={modalFormData.technicalTotalAmount || ''} className={inputCls('technicalTotalAmount')} />
-                        </div>
+                        {fv('claimApplyDate') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Claim Apply Date</label>
+                            <input type="date" name="claimApplyDate" readOnly={!fe('claimApplyDate')} value={modalFormData.claimApplyDate || ''} onChange={handleModalInputChange} className={inputCls('claimApplyDate')} />
+                          </div>
+                        )}
+                        {fv('followUpDate') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Follow Up Date</label>
+                            <input type="date" name="followUpDate" readOnly={!fe('followUpDate')} value={modalFormData.followUpDate || ''} onChange={handleModalInputChange} className={inputCls('followUpDate')} />
+                          </div>
+                        )}
+                        {fv('pdfFileSend') && (
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">PDF File Send</label>
+                            <input name="pdfFileSend" readOnly={!fe('pdfFileSend')} value={modalFormData.pdfFileSend || ''} onChange={handleModalInputChange} className={inputCls('pdfFileSend')} />
+                          </div>
+                        )}
+                        {fv('remarks') && (
+                          <div className="space-y-1.5 col-span-2">
+                            <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Remarks</label>
+                            <textarea name="remarks" readOnly={!fe('remarks')} value={modalFormData.remarks || ''} onChange={handleModalInputChange} rows={2} className={cn(inputCls('remarks'), 'resize-none')} />
+                          </div>
+                        )}
                       </div>
                     </section>
                   )}
 
-                  {/* ── Section 3: Technical Share ── */}
+                  {/* ── Section 3: Accounts ── */}
                   {showTechnicalSection && (
                     <section>
                       <h3 className="text-xs font-bold text-gray-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center text-[10px]">3</span>
-                        Technical Share
+                        Accounts
                         {!perms.editableFields.includes('technical_share') && <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full">View Only</span>}
                       </h3>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1289,6 +1305,14 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         <div className="space-y-1.5">
                           <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Remarks</label>
                           <input name="technicalRemarks" readOnly={!fe('technicalRemarks')} value={modalFormData.technicalRemarks || ''} onChange={handleModalInputChange} className={inputCls('technicalRemarks')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Tele Total Amount</label>
+                          <input name="teleTotalAmount" readOnly value={modalFormData.teleTotalAmount || ''} className={inputCls('teleTotalAmount')} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Technical Total Amount</label>
+                          <input name="technicalTotalAmount" readOnly value={modalFormData.technicalTotalAmount || ''} className={inputCls('technicalTotalAmount')} />
                         </div>
                       </div>
                     </section>
