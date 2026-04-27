@@ -3,7 +3,8 @@ import * as Excel from 'exceljs';
 import {
   Search, Filter, Plus, MoreVertical, Phone, MessageSquare, Mail, MapPin, Building2,
   ChevronLeft, ChevronRight, Download, Upload, Star, Trash2, Edit2, X,
-  CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle, Calendar
+  CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle, Calendar,
+  BarChart3, Percent, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { generateMockContacts, serviceTypes, staff, branches, statuses, paymentStatuses } from '../mockData';
 import { cn } from '../lib/utils';
@@ -77,6 +78,14 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [txnIdError, setTxnIdError] = useState<string | null>(null);
   // CTN inline duplicate error
   const [ctnError, setCtnError] = useState<string | null>(null);
+
+  // ── Admin Staff Filter state ──
+  const [showStaffPanel, setShowStaffPanel] = useState(false);
+  const [staffTypeFilter, setStaffTypeFilter] = useState<'All' | 'TeleCalling' | 'Technical'>('All');
+  const [staffNameFilter, setStaffNameFilter] = useState('');
+  const [bulkTechShare, setBulkTechShare] = useState('');
+  const [bulkTeleShare, setBulkTeleShare] = useState('');
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
   // Editable dropdown lists
   const loadList = (key: string, fallback: string[]) => {
@@ -213,12 +222,96 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     } catch { return null; }
   };
 
+  // ── Admin Staff Stats (computed from all contacts) ──
+  const staffStats = useMemo(() => {
+    if (userRole !== 'Admin') return { teleStaff: [], techStaff: [] };
+    const teleMap: Record<string, { name: string; created: number; edited: number; total: number }> = {};
+    const techMap: Record<string, { name: string; created: number; edited: number; total: number }> = {};
+    contacts.forEach(c => {
+      const tele = (c.teleCallingStaff || '').trim();
+      const tech = (c.technicalStaff || '').trim();
+      if (tele) {
+        if (!teleMap[tele]) teleMap[tele] = { name: tele, created: 0, edited: 0, total: 0 };
+        teleMap[tele].total++;
+        if (c.entryLeads === 'New') teleMap[tele].created++;
+        if (c.entryLeads === 'Re_Entry') teleMap[tele].edited++;
+      }
+      if (tech) {
+        if (!techMap[tech]) techMap[tech] = { name: tech, created: 0, edited: 0, total: 0 };
+        techMap[tech].total++;
+        if (c.entryLeads === 'New') techMap[tech].created++;
+        if (c.entryLeads === 'Re_Entry') techMap[tech].edited++;
+      }
+    });
+    return {
+      teleStaff: Object.values(teleMap).sort((a, b) => b.total - a.total),
+      techStaff: Object.values(techMap).sort((a, b) => b.total - a.total),
+    };
+  }, [contacts, userRole]);
+
+  // Bulk share % update handler
+  const handleBulkShareUpdate = async () => {
+    const techVal = bulkTechShare.trim();
+    const teleVal = bulkTeleShare.trim();
+    if (!techVal && !teleVal) return;
+    setIsBulkUpdating(true);
+    try {
+      // Determine which contacts to update based on staff filters
+      let targets = [...contacts];
+      if (staffTypeFilter === 'TeleCalling' && staffNameFilter) {
+        targets = targets.filter(c => (c.teleCallingStaff || '').trim() === staffNameFilter);
+      } else if (staffTypeFilter === 'Technical' && staffNameFilter) {
+        targets = targets.filter(c => (c.technicalStaff || '').trim() === staffNameFilter);
+      } else if (staffTypeFilter === 'TeleCalling') {
+        targets = targets.filter(c => (c.teleCallingStaff || '').trim());
+      } else if (staffTypeFilter === 'Technical') {
+        targets = targets.filter(c => (c.technicalStaff || '').trim());
+      }
+      let updated = 0;
+      for (const contact of targets) {
+        const patch: Partial<Contact> = {};
+        if (techVal) patch.technicalSharePercent = techVal;
+        if (teleVal) patch.teleCallingSharePercent = teleVal;
+        // Recalculate amounts
+        const recvAmt = parseFloat(contact.receiveAmount || '0') || 0;
+        const ts = parseFloat(techVal || contact.technicalSharePercent || '0') || 0;
+        const tl = parseFloat(teleVal || contact.teleCallingSharePercent || '0') || 0;
+        patch.technicalSalaryAmount = ((recvAmt * ts) / 100).toFixed(2);
+        patch.teleCallingSalaryAmount = ((recvAmt * tl) / 100).toFixed(2);
+        patch.teleTotalAmount = (recvAmt + parseFloat(patch.teleCallingSalaryAmount)).toFixed(2);
+        patch.technicalTotalAmount = (parseFloat(patch.teleTotalAmount) + parseFloat(patch.technicalSalaryAmount)).toFixed(2);
+        try {
+          const updatedContact = await api.updateContact(contact.id, patch);
+          setContacts(prev => prev.map(c => c.id === contact.id ? { ...c, ...updatedContact } : c));
+          updated++;
+        } catch { /* skip failures */ }
+      }
+      triggerToast(`Updated share % for ${updated} contact(s)`);
+      setBulkTechShare('');
+      setBulkTeleShare('');
+    } catch (err) {
+      triggerToast('Failed to update share %', 'error');
+    } finally {
+      setIsBulkUpdating(false);
+    }
+  };
+
   const filteredContacts = useMemo(() => {
     const query = (searchQuery || '').toLowerCase().trim();
     const fromDate = dateFrom ? new Date(dateFrom) : null;
     const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
 
     return contacts.filter(contact => {
+      // ── Staff type/name filter (Admin only) ──
+      if (userRole === 'Admin' && staffTypeFilter !== 'All') {
+        if (staffTypeFilter === 'TeleCalling') {
+          if (staffNameFilter && (contact.teleCallingStaff || '').trim() !== staffNameFilter) return false;
+          if (!staffNameFilter && !(contact.teleCallingStaff || '').trim()) return false;
+        } else if (staffTypeFilter === 'Technical') {
+          if (staffNameFilter && (contact.technicalStaff || '').trim() !== staffNameFilter) return false;
+          if (!staffNameFilter && !(contact.technicalStaff || '').trim()) return false;
+        }
+      }
       // ── Date range filter ──
       if (fromDate || toDate) {
         const contactDate = parseContactDate(contact.date);
@@ -262,7 +355,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         s(contact.teleTotalAmount).includes(query)
       );
     });
-  }, [searchQuery, contacts, dateFrom, dateTo]);
+  }, [searchQuery, contacts, dateFrom, dateTo, staffTypeFilter, staffNameFilter, userRole]);
 
   const totalPages = Math.ceil(filteredContacts.length / ITEMS_PER_PAGE);
   const paginatedContacts = filteredContacts.slice(
@@ -796,6 +889,169 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
           )}
         </AnimatePresence>
       </div>
+
+      {/* ── Admin Staff Performance Panel ── */}
+      {userRole === 'Admin' && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+          <button
+            onClick={() => setShowStaffPanel(v => !v)}
+            className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-gray-50/50 dark:hover:bg-slate-800/30 transition-colors"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-md shadow-violet-500/20">
+                <BarChart3 size={16} className="text-white" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">Staff Performance</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500">Filter by staff, view stats, set share %</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {staffTypeFilter !== 'All' && (
+                <span className="px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-[10px] font-bold">
+                  {staffTypeFilter}{staffNameFilter ? `: ${staffNameFilter}` : ''}
+                </span>
+              )}
+              {showStaffPanel ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {showStaffPanel && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-5 space-y-5 border-t border-gray-100 dark:border-slate-800 pt-4">
+                  {/* Filter Controls */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Staff Type</label>
+                      <select
+                        value={staffTypeFilter}
+                        onChange={e => { setStaffTypeFilter(e.target.value as any); setStaffNameFilter(''); setCurrentPage(1); }}
+                        className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none dark:text-white"
+                      >
+                        <option value="All">All Staff</option>
+                        <option value="TeleCalling">TeleCalling Staff</option>
+                        <option value="Technical">Technical Staff</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Staff Name</label>
+                      <select
+                        value={staffNameFilter}
+                        onChange={e => { setStaffNameFilter(e.target.value); setCurrentPage(1); }}
+                        disabled={staffTypeFilter === 'All'}
+                        className={cn("w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-medium focus:ring-2 focus:ring-violet-500/20 outline-none dark:text-white", staffTypeFilter === 'All' && "opacity-50 cursor-not-allowed")}
+                      >
+                        <option value="">All Names</option>
+                        {(staffTypeFilter === 'TeleCalling' ? staffStats.teleStaff : staffStats.techStaff).map(s => (
+                          <option key={s.name} value={s.name}>{s.name} ({s.total})</option>
+                        ))}
+                      </select>
+                    </div>
+                    {(staffTypeFilter !== 'All' || staffNameFilter) && (
+                      <button
+                        onClick={() => { setStaffTypeFilter('All'); setStaffNameFilter(''); setCurrentPage(1); }}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 transition-colors whitespace-nowrap"
+                      >
+                        <X size={14} /> Clear
+                      </button>
+                    )}
+                    <p className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap pb-1">
+                      {filteredContacts.length} result{filteredContacts.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  {/* Staff Stats Table */}
+                  {staffTypeFilter !== 'All' && (
+                    <div className="bg-gray-50 dark:bg-slate-800/50 rounded-xl overflow-hidden border border-gray-100 dark:border-slate-700">
+                      <div className="overflow-x-auto max-h-[200px] overflow-y-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead className="sticky top-0 z-10">
+                            <tr className="bg-gray-100 dark:bg-slate-800 text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-slate-400">
+                              <th className="px-4 py-2">Staff Name</th>
+                              <th className="px-4 py-2 text-center">Total</th>
+                              <th className="px-4 py-2 text-center">Created (New)</th>
+                              <th className="px-4 py-2 text-center">Edited (Re_Entry)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                            {(staffTypeFilter === 'TeleCalling' ? staffStats.teleStaff : staffStats.techStaff).map(s => (
+                              <tr
+                                key={s.name}
+                                onClick={() => { setStaffNameFilter(s.name); setCurrentPage(1); }}
+                                className={cn(
+                                  "cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-900/10 transition-colors",
+                                  staffNameFilter === s.name && "bg-violet-50 dark:bg-violet-900/20"
+                                )}
+                              >
+                                <td className="px-4 py-2 font-bold text-gray-900 dark:text-white">{s.name}</td>
+                                <td className="px-4 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center w-8 h-6 rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-black">{s.total}</span>
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center w-8 h-6 rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-black">{s.created}</span>
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <span className="inline-flex items-center justify-center w-8 h-6 rounded-md bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-black">{s.edited}</span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bulk Share % Update */}
+                  <div className="bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-900/10 dark:to-indigo-900/10 rounded-xl p-4 border border-violet-200 dark:border-violet-800/50">
+                    <p className="text-xs font-bold text-violet-600 dark:text-violet-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <Percent size={12} /> Set Share % for {staffTypeFilter !== 'All' ? (staffNameFilter || `all ${staffTypeFilter} staff`) : 'all'} contacts
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 items-end">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400">Technical Share %</label>
+                        <input
+                          type="number" min="0" max="100" step="0.5"
+                          value={bulkTechShare}
+                          onChange={e => setBulkTechShare(e.target.value)}
+                          placeholder="e.g. 10"
+                          className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-violet-500/20 outline-none dark:text-white"
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[11px] font-bold text-gray-500 dark:text-slate-400">TeleCalling Share %</label>
+                        <input
+                          type="number" min="0" max="100" step="0.5"
+                          value={bulkTeleShare}
+                          onChange={e => setBulkTeleShare(e.target.value)}
+                          placeholder="e.g. 5"
+                          className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm focus:ring-2 focus:ring-violet-500/20 outline-none dark:text-white"
+                        />
+                      </div>
+                      <button
+                        onClick={handleBulkShareUpdate}
+                        disabled={isBulkUpdating || (!bulkTechShare.trim() && !bulkTeleShare.trim())}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:from-violet-700 hover:to-indigo-700 transition-all shadow-md shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      >
+                        {isBulkUpdating ? <Loader2 size={14} className="animate-spin" /> : <Percent size={14} />}
+                        {isBulkUpdating ? 'Updating...' : 'Apply to Contacts'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-violet-500/70 dark:text-violet-400/50 mt-2">
+                      This will update share % and recalculate salary amounts for {staffTypeFilter !== 'All' ? (staffNameFilter ? `contacts assigned to "${staffNameFilter}"` : `all ${staffTypeFilter} contacts`) : 'all contacts'}.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Desktop Table */}
       <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
