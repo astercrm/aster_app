@@ -67,4 +67,13 @@ getActivitySummary: () => request<any[]>('/activity/summary'),
 getAttendanceSummary: (month: number, year: number) =>
   request<any[]>(`/attendance/summary?month=${month}&year=${year}`),
 
+// Dropdown options (persistent, shared across all users)
+getDropdownOptions: () => request<Record<string, string[]>>('/dropdown-options'),
+addDropdownOption: (category: string, label: string) =>
+  request<any>('/dropdown-options', { method: 'POST', body: JSON.stringify({ category, label }) }),
+renameDropdownOption: (category: string, oldLabel: string, newLabel: string) =>
+  request<any>('/dropdown-options', { method: 'PUT', body: JSON.stringify({ category, oldLabel, newLabel }) }),
+deleteDropdownOption: (category: string, label: string) =>
+  request<any>('/dropdown-options', { method: 'DELETE', body: JSON.stringify({ category, label }) }),
+
 };

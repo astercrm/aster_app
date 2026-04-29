@@ -60,6 +60,8 @@ export const generateMockContacts = (count: number): Contact[] => {
       teleTotalAmount: '700',
       technicalTotalAmount: '1200',
       isFavorite: false,
+      createdByUserId: '',
+      createdByUserName: '',
     });
   }
   return contacts;

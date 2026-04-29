@@ -130,7 +130,94 @@ async function startServer() {
   const keyType = process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role (RLS bypassed ✅)' : 'anon (RLS applies ⚠️ — add SUPABASE_SERVICE_ROLE_KEY to .env.local)';
   console.log(`\n🔑 Supabase key: ${keyType}\n`);
 
-
+  // ── AUTO-MIGRATE: dropdown_options table ──────────────────────────────────
+  // Try to query the table; if it fails (doesn't exist), create it via raw SQL
+  const { error: ddCheck } = await supabase.from('dropdown_options').select('id').limit(1);
+  if (ddCheck && (ddCheck.code === '42P01' || ddCheck.message?.includes('does not exist'))) {
+    console.log('📦 Creating dropdown_options table...');
+    // Use supabase's rpc to run raw SQL (requires service_role key)
+    const createSQL = `
+      CREATE TABLE IF NOT EXISTS dropdown_options (
+        id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+        category TEXT NOT NULL,
+        label TEXT NOT NULL,
+        sort_order INT DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT now()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_dropdown_options_category_label
+        ON dropdown_options (category, label);
+    `;
+    const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+    }).catch(() => null);
+    // If rpc doesn't work, try the SQL endpoint directly
+    const sqlResp = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+    }).catch(() => null);
+    console.log('⚠️  dropdown_options table does not exist. Please run supabase_dropdown_options.sql in the Supabase SQL Editor.');
+  } else {
+    // Table exists — seed defaults if empty
+    const { data: existing } = await supabase.from('dropdown_options').select('id').limit(1);
+    if (!existing || existing.length === 0) {
+      console.log('📦 Seeding dropdown_options with defaults...');
+      const defaults = [
+        // Service Types
+        { category: 'serviceTypes', label: 'F31 Advance', sort_order: 1 },
+        { category: 'serviceTypes', label: 'UAN Activation', sort_order: 2 },
+        { category: 'serviceTypes', label: 'KYC Bank Add', sort_order: 3 },
+        { category: 'serviceTypes', label: 'Bank add', sort_order: 4 },
+        { category: 'serviceTypes', label: 'Uan Find & Activation', sort_order: 5 },
+        { category: 'serviceTypes', label: 'Other', sort_order: 6 },
+        { category: 'serviceTypes', label: 'Online JD', sort_order: 7 },
+        { category: 'serviceTypes', label: 'F13_File Transfor', sort_order: 8 },
+        { category: 'serviceTypes', label: 'E_Nominee Add', sort_order: 9 },
+        { category: 'serviceTypes', label: '10C_Pension withdrown', sort_order: 10 },
+        { category: 'serviceTypes', label: 'F19_Final Settelment', sort_order: 11 },
+        { category: 'serviceTypes', label: 'PF Withdrawal', sort_order: 12 },
+        { category: 'serviceTypes', label: 'Pension Claim', sort_order: 13 },
+        { category: 'serviceTypes', label: 'Death Claim', sort_order: 14 },
+        { category: 'serviceTypes', label: 'Transfer Claim', sort_order: 15 },
+        // Statuses
+        { category: 'statuses', label: 'New', sort_order: 1 },
+        { category: 'statuses', label: 'Completed', sort_order: 2 },
+        { category: 'statuses', label: 'Complete', sort_order: 3 },
+        { category: 'statuses', label: 'Pending', sort_order: 4 },
+        // Tele Calling Staff
+        { category: 'teleCallingStaff', label: 'Jaya', sort_order: 1 },
+        { category: 'teleCallingStaff', label: 'Kowsalya', sort_order: 2 },
+        { category: 'teleCallingStaff', label: 'Revathi', sort_order: 3 },
+        { category: 'teleCallingStaff', label: 'Poornima', sort_order: 4 },
+        { category: 'teleCallingStaff', label: 'Anusakthiya', sort_order: 5 },
+        { category: 'teleCallingStaff', label: 'Shobana', sort_order: 6 },
+        { category: 'teleCallingStaff', label: 'Deepa', sort_order: 7 },
+        { category: 'teleCallingStaff', label: 'Ramya', sort_order: 8 },
+        // Technical Staff
+        { category: 'technicalStaff', label: 'Jaya', sort_order: 1 },
+        { category: 'technicalStaff', label: 'Kowsalya', sort_order: 2 },
+        { category: 'technicalStaff', label: 'Revathi', sort_order: 3 },
+        { category: 'technicalStaff', label: 'Poornima', sort_order: 4 },
+        { category: 'technicalStaff', label: 'Anusakthiya', sort_order: 5 },
+        { category: 'technicalStaff', label: 'Shobana', sort_order: 6 },
+        { category: 'technicalStaff', label: 'Deepa', sort_order: 7 },
+        { category: 'technicalStaff', label: 'Ramya', sort_order: 8 },
+        // Branches
+        { category: 'branches', label: 'ERD_Kowsalya', sort_order: 1 },
+        { category: 'branches', label: 'SLM_Shobana', sort_order: 2 },
+        { category: 'branches', label: 'CBE_Deepa', sort_order: 3 },
+        { category: 'branches', label: 'TRY_Ramya', sort_order: 4 },
+        { category: 'branches', label: 'NKL_Poornima', sort_order: 5 },
+        { category: 'branches', label: 'MDU_Anusakthiya', sort_order: 6 },
+        // Payment Statuses
+        { category: 'paymentStatuses', label: 'Full Paid', sort_order: 1 },
+        { category: 'paymentStatuses', label: 'Partially Paid', sort_order: 2 },
+      ];
+      const { error: seedErr } = await supabase.from('dropdown_options').insert(defaults);
+      if (seedErr) console.error('⚠️  Failed to seed dropdown_options:', seedErr.message);
+      else console.log('✅ dropdown_options seeded with defaults.');
+    }
+  }
 
   // ── UPLOADS ─────────────────────────────────────────────────────────────────
   const upload = multer({
@@ -851,6 +938,88 @@ async function startServer() {
     });
 
     res.json(Object.values(users));
+  });
+
+  // ── DROPDOWN OPTIONS (persistent, shared across all users) ─────────────────
+
+  // GET all dropdown options (accessible to all roles)
+  app.get('/api/dropdown-options', async (req, res) => {
+    const { data, error } = await supabase
+      .from('dropdown_options')
+      .select('id, category, label, sort_order')
+      .order('sort_order', { ascending: true });
+    if (error) {
+      // Table might not exist yet — return empty so the app doesn't crash
+      console.error('⚠️  dropdown_options fetch error:', error.message);
+      return res.json({});
+    }
+    // Group by category
+    const grouped: Record<string, string[]> = {};
+    (data || []).forEach((row: any) => {
+      if (!grouped[row.category]) grouped[row.category] = [];
+      grouped[row.category].push(row.label);
+    });
+    res.json(grouped);
+  });
+
+  // POST — add a new option to a category
+  app.post('/api/dropdown-options', async (req, res) => {
+    const { category, label } = req.body;
+    if (!category || !label) return res.status(400).json({ message: 'category and label are required.' });
+
+    // Get the next sort_order
+    const { data: maxRow } = await supabase
+      .from('dropdown_options')
+      .select('sort_order')
+      .eq('category', category)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextOrder = (maxRow?.sort_order || 0) + 1;
+
+    const { data, error } = await supabase
+      .from('dropdown_options')
+      .insert({ category, label: label.trim(), sort_order: nextOrder })
+      .select()
+      .single();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ message: 'Item already exists in this category.' });
+      return res.status(500).json({ message: error.message });
+    }
+    res.json(data);
+  });
+
+  // PUT — rename an option
+  app.put('/api/dropdown-options', async (req, res) => {
+    const { category, oldLabel, newLabel } = req.body;
+    if (!category || !oldLabel || !newLabel) return res.status(400).json({ message: 'category, oldLabel, and newLabel are required.' });
+
+    const { data, error } = await supabase
+      .from('dropdown_options')
+      .update({ label: newLabel.trim() })
+      .eq('category', category)
+      .eq('label', oldLabel)
+      .select()
+      .single();
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ message: 'An item with that name already exists.' });
+      return res.status(500).json({ message: error.message });
+    }
+    res.json(data);
+  });
+
+  // DELETE — remove an option
+  app.delete('/api/dropdown-options', async (req, res) => {
+    const { category, label } = req.body;
+    if (!category || !label) return res.status(400).json({ message: 'category and label are required.' });
+
+    const { error } = await supabase
+      .from('dropdown_options')
+      .delete()
+      .eq('category', category)
+      .eq('label', label);
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({ success: true });
   });
 
   // ── HEALTH CHECK ──────────────────────────────────────────────────────────

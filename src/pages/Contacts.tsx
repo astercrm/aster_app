@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import * as Excel from 'exceljs';
 import {
   Search, Filter, Plus, MoreVertical, Phone, MessageSquare, Mail, MapPin, Building2,
@@ -6,7 +6,7 @@ import {
   CheckCircle2, Users, Loader2, ImageIcon, Eye, AlertTriangle, Calendar,
   BarChart3, Percent, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { generateMockContacts, serviceTypes, staff, branches, statuses, paymentStatuses } from '../mockData';
+import { generateMockContacts, serviceTypes as defaultServiceTypes, staff as defaultStaff, branches as defaultBranches, statuses as defaultStatuses, paymentStatuses as defaultPaymentStatuses } from '../mockData';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Contact } from '../types';
@@ -89,41 +89,79 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [bulkTeleShare, setBulkTeleShare] = useState('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
-  // Editable dropdown lists
-  const loadList = (key: string, fallback: string[]) => {
-    try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
-  };
-  const [customServiceTypes, setCustomServiceTypes] = useState<string[]>(() => loadList('aster_serviceTypes', serviceTypes));
-  const [customStatuses, setCustomStatuses] = useState<string[]>(() => loadList('aster_statuses', statuses));
-  const [customTeleCallingStaff, setCustomTeleCallingStaff] = useState<string[]>(() => loadList('aster_teleCallingStaff', staff));
-  const [customTechnicalStaff, setCustomTechnicalStaff] = useState<string[]>(() => loadList('aster_technicalStaff', staff));
-  const [customBranches, setCustomBranches] = useState<string[]>(() => loadList('aster_branches', branches));
-  const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(() => loadList('aster_paymentStatuses', paymentStatuses));
-  const saveList = (key: string, list: string[]) => { try { localStorage.setItem(key, JSON.stringify(list)); } catch { } };
+  // ── Dropdown lists (loaded from server DB, shared across all users) ──
+  const [customServiceTypes, setCustomServiceTypes] = useState<string[]>(defaultServiceTypes);
+  const [customStatuses, setCustomStatuses] = useState<string[]>(defaultStatuses);
+  const [customTeleCallingStaff, setCustomTeleCallingStaff] = useState<string[]>(defaultStaff);
+  const [customTechnicalStaff, setCustomTechnicalStaff] = useState<string[]>(defaultStaff);
+  const [customBranches, setCustomBranches] = useState<string[]>(defaultBranches);
+  const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(defaultPaymentStatuses);
+  const [renamingItem, setRenamingItem] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
-  const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; storageKey: string }> = {
-    serviceTypes: { label: 'Service Types (Customer Requirement)', list: customServiceTypes, setList: (l) => { setCustomServiceTypes(l); saveList('aster_serviceTypes', l); }, storageKey: 'aster_serviceTypes' },
-    statuses: { label: 'Current Status Options', list: customStatuses, setList: (l) => { setCustomStatuses(l); saveList('aster_statuses', l); }, storageKey: 'aster_statuses' },
-    teleCallingStaff: { label: 'Tele Calling Staff', list: customTeleCallingStaff, setList: (l) => { setCustomTeleCallingStaff(l); saveList('aster_teleCallingStaff', l); }, storageKey: 'aster_teleCallingStaff' },
-    technicalStaff: { label: 'Technical Staff', list: customTechnicalStaff, setList: (l) => { setCustomTechnicalStaff(l); saveList('aster_technicalStaff', l); }, storageKey: 'aster_technicalStaff' },
-    branches: { label: 'Branches / Locations', list: customBranches, setList: (l) => { setCustomBranches(l); saveList('aster_branches', l); }, storageKey: 'aster_branches' },
-    paymentStatuses: { label: 'Payment Status Options', list: customPaymentStatuses, setList: (l) => { setCustomPaymentStatuses(l); saveList('aster_paymentStatuses', l); }, storageKey: 'aster_paymentStatuses' },
+  // Fetch dropdown options from the server on mount
+  useEffect(() => {
+    api.getDropdownOptions()
+      .then((grouped) => {
+        if (grouped.serviceTypes?.length) setCustomServiceTypes(grouped.serviceTypes);
+        if (grouped.statuses?.length) setCustomStatuses(grouped.statuses);
+        if (grouped.teleCallingStaff?.length) setCustomTeleCallingStaff(grouped.teleCallingStaff);
+        if (grouped.technicalStaff?.length) setCustomTechnicalStaff(grouped.technicalStaff);
+        if (grouped.branches?.length) setCustomBranches(grouped.branches);
+        if (grouped.paymentStatuses?.length) setCustomPaymentStatuses(grouped.paymentStatuses);
+      })
+      .catch(err => console.warn('Failed to load dropdown options:', err));
+  }, []);
+
+  const dropdownConfig: Record<typeof dropdownManagerTab, { label: string; list: string[]; setList: (l: string[]) => void; category: string }> = {
+    serviceTypes: { label: 'Service Types (Customer Requirement)', list: customServiceTypes, setList: setCustomServiceTypes, category: 'serviceTypes' },
+    statuses: { label: 'Current Status Options', list: customStatuses, setList: setCustomStatuses, category: 'statuses' },
+    teleCallingStaff: { label: 'Tele Calling Staff', list: customTeleCallingStaff, setList: setCustomTeleCallingStaff, category: 'teleCallingStaff' },
+    technicalStaff: { label: 'Technical Staff', list: customTechnicalStaff, setList: setCustomTechnicalStaff, category: 'technicalStaff' },
+    branches: { label: 'Branches / Locations', list: customBranches, setList: setCustomBranches, category: 'branches' },
+    paymentStatuses: { label: 'Payment Status Options', list: customPaymentStatuses, setList: setCustomPaymentStatuses, category: 'paymentStatuses' },
   };
 
-  const handleAddDropdownItem = () => {
+  const handleAddDropdownItem = async () => {
     const trimmed = newDropdownItem.trim();
     if (!trimmed) return;
     const cfg = dropdownConfig[dropdownManagerTab];
     if (cfg.list.includes(trimmed)) { triggerToast('Item already exists', 'error'); return; }
-    cfg.setList([...cfg.list, trimmed]);
-    setNewDropdownItem('');
-    triggerToast('Item added');
+    try {
+      await api.addDropdownOption(cfg.category, trimmed);
+      cfg.setList([...cfg.list, trimmed]);
+      setNewDropdownItem('');
+      triggerToast('Item added');
+    } catch (err: any) {
+      triggerToast(err.message || 'Failed to add item', 'error');
+    }
   };
 
-  const handleRemoveDropdownItem = (item: string) => {
+  const handleRemoveDropdownItem = async (item: string) => {
     const cfg = dropdownConfig[dropdownManagerTab];
-    cfg.setList(cfg.list.filter(i => i !== item));
-    triggerToast('Item removed');
+    try {
+      await api.deleteDropdownOption(cfg.category, item);
+      cfg.setList(cfg.list.filter(i => i !== item));
+      triggerToast('Item removed');
+    } catch (err: any) {
+      triggerToast(err.message || 'Failed to remove item', 'error');
+    }
+  };
+
+  const handleRenameDropdownItem = async (oldLabel: string) => {
+    const newLabel = renameValue.trim();
+    if (!newLabel || newLabel === oldLabel) { setRenamingItem(null); return; }
+    const cfg = dropdownConfig[dropdownManagerTab];
+    if (cfg.list.includes(newLabel)) { triggerToast('Item already exists', 'error'); return; }
+    try {
+      await api.renameDropdownOption(cfg.category, oldLabel, newLabel);
+      cfg.setList(cfg.list.map(i => i === oldLabel ? newLabel : i));
+      setRenamingItem(null);
+      setRenameValue('');
+      triggerToast('Item renamed');
+    } catch (err: any) {
+      triggerToast(err.message || 'Failed to rename item', 'error');
+    }
   };
 
   const calculateAmounts = (data: Partial<Contact>) => {
@@ -325,15 +363,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
 
     return contacts.filter(contact => {
-      // ── Role-based ownership filter: Technical/TeleCalling see only own contacts ──
-      if (userRole === 'Technical') {
-        const myName = (user?.name || '').trim();
-        if (myName && (contact.createdByUserName || '').trim() !== myName) return false;
-      }
-      if (userRole === 'TeleCalling') {
-        const myName = (user?.name || '').trim();
-        if (myName && (contact.createdByUserName || '').trim() !== myName) return false;
-      }
+      // ── All roles (Admin, User, Technical, TeleCalling) see all saved contacts ──
       // ── Staff type/name filter (Admin only) ──
       if (userRole === 'Admin' && staffTypeFilter !== 'All') {
         if (staffTypeFilter === 'TeleCalling') {
@@ -1741,7 +1771,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
               </div>
               <div className="flex gap-1 px-4 pt-3 overflow-x-auto shrink-0">
                 {(Object.keys(dropdownConfig) as Array<typeof dropdownManagerTab>).map(tab => (
-                  <button key={tab} onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); }}
+                  <button key={tab} onClick={() => { setDropdownManagerTab(tab); setNewDropdownItem(''); setRenamingItem(null); }}
                     className={cn("px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all", dropdownManagerTab === tab ? "bg-primary text-white" : "text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800")}>
                     {dropdownConfig[tab].label.split(' ').slice(0, 2).join(' ')}
                   </button>
@@ -1757,14 +1787,38 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   {dropdownConfig[dropdownManagerTab].list.length === 0 && <p className="text-sm text-gray-400 dark:text-slate-500 text-center py-4">No options yet.</p>}
                   {dropdownConfig[dropdownManagerTab].list.map(item => (
                     <div key={item} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl group">
-                      <span className="text-sm text-gray-800 dark:text-slate-200">{item}</span>
-                      <button onClick={() => handleRemoveDropdownItem(item)} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors opacity-0 group-hover:opacity-100"><X size={14} /></button>
+                      {renamingItem === item ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleRenameDropdownItem(item); } if (e.key === 'Escape') { setRenamingItem(null); } }}
+                            autoFocus
+                            className="flex-1 bg-white dark:bg-slate-700 border border-primary/30 rounded-lg py-1 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white"
+                          />
+                          <button onClick={() => handleRenameDropdownItem(item)} className="px-2.5 py-1 bg-primary text-white rounded-lg text-xs font-bold hover:bg-primary/90 transition-all">Save</button>
+                          <button onClick={() => setRenamingItem(null)} className="px-2 py-1 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-xs font-bold">Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <span className="text-sm text-gray-800 dark:text-slate-200">{item}</span>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => { setRenamingItem(item); setRenameValue(item); }} className="p-1 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Rename">
+                              <Edit2 size={13} />
+                            </button>
+                            <button onClick={() => handleRemoveDropdownItem(item)} className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Delete">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
               <div className="px-6 py-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/50">
-                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Changes are saved automatically.</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Changes are saved permanently to the database and shared across all users.</p>
               </div>
             </motion.div>
           </div>
