@@ -78,6 +78,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [txnIdError, setTxnIdError] = useState<string | null>(null);
   // CTN inline duplicate error
   const [ctnError, setCtnError] = useState<string | null>(null);
+  // Customer Mobile duplicate warning (non-blocking)
+  const [mobileDupWarning, setMobileDupWarning] = useState<string | null>(null);
 
   // ── Admin Staff Filter state ──
   const [showStaffPanel, setShowStaffPanel] = useState(false);
@@ -198,6 +200,27 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     }
   };
 
+  // Real-time Customer Mobile duplicate check (warning only – does NOT block save)
+  const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setModalFormData(prev => ({ ...prev, customerContactNumber: value }));
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setMobileDupWarning(null);
+      return;
+    }
+    const duplicates = contacts.filter(
+      c => (c.customerContactNumber || '').trim() === trimmed
+        && c.id !== editingContact?.id
+    );
+    if (duplicates.length > 0) {
+      const names = duplicates.map(d => d.customerName || 'Unknown').join(', ');
+      setMobileDupWarning(`This mobile number is already used by: ${names}`);
+    } else {
+      setMobileDupWarning(null);
+    }
+  };
+
 
   const getCellValue = (colNames: string[], row: any[], headers: string[], occurrence = 1) => {
     let count = 0;
@@ -302,6 +325,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     const toDate = dateTo ? new Date(dateTo + 'T23:59:59') : null;
 
     return contacts.filter(contact => {
+      // ── Role-based ownership filter: Technical/TeleCalling see only own contacts ──
+      if (userRole === 'Technical') {
+        const myName = (user?.name || '').trim();
+        if (myName && (contact.createdByUserName || '').trim() !== myName) return false;
+      }
+      if (userRole === 'TeleCalling') {
+        const myName = (user?.name || '').trim();
+        if (myName && (contact.createdByUserName || '').trim() !== myName) return false;
+      }
       // ── Staff type/name filter (Admin only) ──
       if (userRole === 'Admin' && staffTypeFilter !== 'All') {
         if (staffTypeFilter === 'TeleCalling') {
@@ -355,7 +387,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         s(contact.teleTotalAmount).includes(query)
       );
     });
-  }, [searchQuery, contacts, dateFrom, dateTo, staffTypeFilter, staffNameFilter, userRole]);
+  }, [searchQuery, contacts, dateFrom, dateTo, staffTypeFilter, staffNameFilter, userRole, user]);
 
   const totalPages = Math.ceil(filteredContacts.length / ITEMS_PER_PAGE);
   const paginatedContacts = filteredContacts.slice(
@@ -368,6 +400,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setDuplicateWarning(null);
     setTxnIdError(null);
     setCtnError(null);
+    setMobileDupWarning(null);
     setModalFormData({
       entryLeads: 'New',
       currentStatus: 'New',
@@ -390,6 +423,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     setDuplicateWarning(null);
     setTxnIdError(null);
     setCtnError(null);
+    setMobileDupWarning(null);
     setModalFormData({
 
       ...contact,
@@ -677,6 +711,11 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       teleCallingPaidDate: fromInputDate(modalFormData.teleCallingPaidDate),
     };
     contactData.isFavorite = editingContact?.isFavorite || false;
+    // Stamp creator info on new contacts
+    if (!editingContact) {
+      contactData.createdByUserId = user?.id || '';
+      contactData.createdByUserName = user?.name || '';
+    }
 
     try {
       if (editingContact) {
@@ -710,6 +749,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       setIsModalOpen(false);
       setTxnIdError(null);
       setCtnError(null);
+      setMobileDupWarning(null);
     } catch (error: any) {
       console.error('Failed to save contact:', error);
       // Handle duplicate detection (409 from server)
@@ -1097,6 +1137,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                 {fv('teleCallingPaidDate') && <th className="px-3 py-2 whitespace-nowrap">TELE PAID DATE</th>}
                 {fv('teleCallingRemarks') && <th className="px-3 py-2">TELE REMARKS</th>}
                 {fv('teleTotalAmount') && <th className="px-3 py-2">TELE TOTAL</th>}
+                {userRole === 'Admin' && <th className="px-3 py-2 whitespace-nowrap">CREATED BY</th>}
                 <th className="px-3 py-2 text-right sticky right-0 z-20 bg-gray-50 dark:bg-slate-800">ACTIONS</th>
               </tr>
             </thead>
@@ -1148,6 +1189,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   {fv('teleCallingPaidDate') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.teleCallingPaidDate || '—'}</td>}
                   {fv('teleCallingRemarks') && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 max-w-[140px] truncate">{contact.teleCallingRemarks || '—'}</td>}
                   {fv('teleTotalAmount') && <td className="px-3 py-2 font-bold text-primary">{contact.teleTotalAmount ? `₹${contact.teleTotalAmount}` : '—'}</td>}
+                  {userRole === 'Admin' && <td className="px-3 py-2 text-gray-500 dark:text-slate-400 whitespace-nowrap">{contact.createdByUserName || '—'}</td>}
                   <td className="px-3 py-2 sticky right-0 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30">
                     <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       {/* WhatsApp */}
@@ -1380,7 +1422,19 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                         {fv('customerContactNumber') && (
                           <div className="space-y-1.5">
                             <label className="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Customer Mobile</label>
-                            <input name="customerContactNumber" readOnly={!fe('customerContactNumber')} value={modalFormData.customerContactNumber || ''} onChange={handleModalInputChange} className={inputCls('customerContactNumber')} />
+                            <input
+                              name="customerContactNumber"
+                              readOnly={!fe('customerContactNumber')}
+                              value={modalFormData.customerContactNumber || ''}
+                              onChange={handleMobileChange}
+                              className={mobileDupWarning ? 'w-full rounded-xl px-3 py-2 text-sm border-2 border-amber-400 bg-amber-50 dark:bg-amber-900/20 outline-none text-amber-700 dark:text-amber-300' : inputCls('customerContactNumber')}
+                              placeholder="e.g. 9876543210"
+                            />
+                            {mobileDupWarning && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                                <span>⚠</span> {mobileDupWarning}
+                              </p>
+                            )}
                           </div>
                         )}
                         {fv('customerName') && (

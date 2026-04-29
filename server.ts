@@ -60,6 +60,8 @@ function toContact(row: any) {
     technicalTotalAmount: row.technical_total_amount || '',
     isFavorite: row.is_favorite || false,
     screenShotImage: row.screenshot_image || '',
+    createdByUserId: row.created_by_user_id || '',
+    createdByUserName: row.created_by_user_name || '',
   };
 }
 
@@ -98,6 +100,8 @@ function toDB(contact: any) {
     technical_total_amount: contact.technicalTotalAmount,
     is_favorite: contact.isFavorite,
     screenshot_image: contact.screenShotImage,
+    created_by_user_id: contact.createdByUserId,
+    created_by_user_name: contact.createdByUserName,
   };
 }
 
@@ -441,13 +445,11 @@ async function startServer() {
       return res.status(400).json({ message: 'No contacts provided.' });
     }
 
-    // Collect unique non-empty CTNs and phone numbers from the incoming batch
+    // Collect unique non-empty CTNs from the incoming batch (phone duplicates allowed)
     const incomingCtns = [...new Set(contacts.map(c => (c.ctn || '').trim()).filter(Boolean))];
-    const incomingPhones = [...new Set(contacts.map(c => (c.customerContactNumber || '').trim()).filter(Boolean))];
 
-    // Fetch existing records that match any of the incoming CTNs or phone numbers
+    // Fetch existing records that match any of the incoming CTNs
     const existingCtns = new Set<string>();
-    const existingPhones = new Set<string>();
 
     if (incomingCtns.length > 0) {
       const { data: ctnRows } = await supabase
@@ -457,28 +459,15 @@ async function startServer() {
       (ctnRows || []).forEach((r: any) => r.ctn && existingCtns.add(r.ctn.trim()));
     }
 
-    if (incomingPhones.length > 0) {
-      const { data: phoneRows } = await supabase
-        .from('contacts')
-        .select('customer_contact_number')
-        .in('customer_contact_number', incomingPhones);
-      (phoneRows || []).forEach((r: any) => r.customer_contact_number && existingPhones.add(r.customer_contact_number.trim()));
-    }
-
-    // Separate new from duplicate rows
+    // Separate new from duplicate rows (only CTN duplicates are blocked)
     const newContacts: any[] = [];
-    const skippedCount = { ctn: 0, phone: 0 };
+    let skippedCtn = 0;
 
     for (const c of contacts) {
       const ctn = (c.ctn || '').trim();
-      const phone = (c.customerContactNumber || '').trim();
 
       if (ctn && existingCtns.has(ctn)) {
-        skippedCount.ctn++;
-        continue;
-      }
-      if (phone && existingPhones.has(phone)) {
-        skippedCount.phone++;
+        skippedCtn++;
         continue;
       }
 
@@ -487,7 +476,7 @@ async function startServer() {
 
     if (newContacts.length === 0) {
       return res.status(409).json({
-        message: `All ${contacts.length} contacts already exist (${skippedCount.ctn} duplicate CTN, ${skippedCount.phone} duplicate phone). Nothing was imported.`,
+        message: `All ${contacts.length} contacts already exist (${skippedCtn} duplicate CTN). Nothing was imported.`,
         duplicate: true,
         inserted: 0,
         skipped: contacts.length,
@@ -536,23 +525,6 @@ async function startServer() {
           message: `Duplicate CTN: "${contact.ctn}" already exists for customer "${existing.customer_name}".`,
           duplicate: true,
           existingId: existing.id,
-        });
-      }
-    }
-
-    // Also check by customer contact number + customer name combo
-    if (contact.customerContactNumber && contact.customerContactNumber.trim() !== '') {
-      const { data: existingByPhone } = await supabase
-        .from('contacts')
-        .select('id, customer_name, customer_contact_number')
-        .eq('customer_contact_number', contact.customerContactNumber.trim())
-        .maybeSingle();
-
-      if (existingByPhone) {
-        return res.status(409).json({
-          message: `Duplicate contact: Phone "${contact.customerContactNumber}" already exists for "${existingByPhone.customer_name}".`,
-          duplicate: true,
-          existingId: existingByPhone.id,
         });
       }
     }
@@ -606,21 +578,7 @@ async function startServer() {
       }
     }
 
-    // Phone duplicate check
-    if (contact.customerContactNumber && contact.customerContactNumber.trim() !== '') {
-      const { data: existing } = await supabase
-        .from('contacts')
-        .select('id, customer_name')
-        .eq('customer_contact_number', contact.customerContactNumber.trim())
-        .neq('id', contactId)
-        .maybeSingle();
-      if (existing) {
-        return res.status(409).json({
-          message: `Duplicate phone: "${contact.customerContactNumber}" already exists for "${existing.customer_name}".`,
-          duplicate: true,
-        });
-      }
-    }
+    // Phone duplicate check removed — allow multiple contacts with same mobile number
 
     // Transaction ID duplicate check
     if (contact.transactionId && contact.transactionId.trim() !== '') {

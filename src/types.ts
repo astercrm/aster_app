@@ -32,13 +32,15 @@ export interface Contact {
   technicalTotalAmount: string;
   isFavorite: boolean;
   screenShotImage: string;
+  createdByUserId: string;
+  createdByUserName: string;
 }
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'User';
+  role: 'Admin' | 'User' | 'Technical' | 'TeleCalling';
   avatar?: string;
   phone?: string;
   location?: string;
