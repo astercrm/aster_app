@@ -27,12 +27,13 @@ export interface RolePermissions {
 
 // Field groups that map to sections of the contact form
 export type ContactFieldGroup =
-  | 'ctn_to_remarks'         // CTN → Remarks (all basic info fields)
-  | 'ctn_to_current_status'  // CTN → Current Status only (TeleCalling subset)
-  | 'salary_amount'          // receiveAmount / serviceCharges / amounts
-  | 'technical_share'        // technicalSharePercent, technicalSalaryAmount, etc.
-  | 'telecalling_share'      // teleCallingSharePercent, teleCallingSalaryAmount, etc.
-  | 'screenshot';            // Screenshot image
+  | 'ctn_to_remarks'                // CTN → Remarks (all basic info fields)
+  | 'ctn_to_remarks_technical'      // CTN → Remarks minus claimApplyDate, followUpDate, pdfFileSend, remarks
+  | 'ctn_to_current_status'         // CTN → Current Status only (TeleCalling subset)
+  | 'salary_amount'                 // receiveAmount / serviceCharges / amounts
+  | 'technical_share'               // technicalSharePercent, technicalSalaryAmount, etc.
+  | 'telecalling_share'             // teleCallingSharePercent, teleCallingSalaryAmount, etc.
+  | 'screenshot';                   // Screenshot image
 
 // ─── Individual field lists per group ────────────────────────────────────────
 
@@ -52,6 +53,16 @@ export const CTN_TO_CURRENT_STATUS_FIELDS = [
   'teleCallingStaff', 'technicalStaff',
   'customerContactNumber', 'customerName', 'customerRequirement',
   'currentStatus',
+] as const;
+
+// Technical role: CTN → Remarks but WITHOUT claimApplyDate, followUpDate, pdfFileSend, remarks
+export const CTN_TO_REMARKS_TECHNICAL_FIELDS = [
+  'orderNumber', 'entryLeads', 'ctn', 'date',
+  'teleCallingStaff', 'technicalStaff',
+  'customerContactNumber', 'customerName', 'customerRequirement',
+  'currentStatus', 'detailsNotes',
+  'serviceCharges', 'paymentStatus',
+  'receiveAmount', 'transactionId', 'receiveDate',
 ] as const;
 
 export const SALARY_AMOUNT_FIELDS = [
@@ -155,13 +166,14 @@ export function isFieldEditable(fieldName: string, role: AppRole): boolean {
 
 export function getFieldsForGroup(group: ContactFieldGroup): readonly string[] {
   switch (group) {
-    case 'ctn_to_remarks':          return CTN_TO_REMARKS_FIELDS;
-    case 'ctn_to_current_status':   return CTN_TO_CURRENT_STATUS_FIELDS;
-    case 'salary_amount':           return SALARY_AMOUNT_FIELDS;
-    case 'technical_share':         return TECHNICAL_SHARE_FIELDS;
-    case 'telecalling_share':       return TELECALLING_SHARE_FIELDS;
-    case 'screenshot':              return ['screenShotImage'];
-    default:                        return [];
+    case 'ctn_to_remarks':              return CTN_TO_REMARKS_FIELDS;
+    case 'ctn_to_remarks_technical':    return CTN_TO_REMARKS_TECHNICAL_FIELDS;
+    case 'ctn_to_current_status':       return CTN_TO_CURRENT_STATUS_FIELDS;
+    case 'salary_amount':               return SALARY_AMOUNT_FIELDS;
+    case 'technical_share':             return TECHNICAL_SHARE_FIELDS;
+    case 'telecalling_share':           return TELECALLING_SHARE_FIELDS;
+    case 'screenshot':                  return ['screenShotImage'];
+    default:                            return [];
   }
 }
 

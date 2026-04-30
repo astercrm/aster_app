@@ -813,7 +813,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
 
   // ── Section-level visibility guards (robust: checks group membership directly) ──
   // These avoid false negatives from isFieldVisible when permissions.ts field lists differ
-  const showBasicSection = perms.visibleFields.includes('ctn_to_remarks') || perms.visibleFields.includes('ctn_to_current_status');
+  const showBasicSection = perms.visibleFields.includes('ctn_to_remarks') || perms.visibleFields.includes('ctn_to_remarks_technical') || perms.visibleFields.includes('ctn_to_current_status');
   const showSalarySection = perms.visibleFields.includes('salary_amount');
   const showTechnicalSection = perms.visibleFields.includes('technical_share');
   const showTeleCallingSection = perms.visibleFields.includes('telecalling_share');

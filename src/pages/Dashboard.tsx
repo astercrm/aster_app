@@ -278,9 +278,12 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
   // ── Amount calculations ──
   const amountStats = useMemo(() => {
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayISO = today.toISOString().slice(0, 10); // YYYY-MM-DD
+    // Contact 'date' field uses DD-Mon-YYYY format (e.g. 30-Apr-2026)
+    const todayDMY = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     let monthTotal = 0;
     let todayTotal = 0;
@@ -288,10 +291,26 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
     contacts.forEach(c => {
       const amt = parseFloat(c.receiveAmount || '0') || 0;
       if (amt <= 0) return;
+
+      // Check if contact was created today (date field: DD-Mon-YYYY)
+      const isCreatedToday = c.date === todayDMY;
+
+      // Check if receiveDate is today (YYYY-MM-DD format)
+      const isReceivedToday = c.receiveDate === todayISO;
+
+      // For today total: count if either the contact was created today OR received today
+      if (isCreatedToday || isReceivedToday) todayTotal += amt;
+
+      // For month total: check receiveDate first, fall back to contact date
       const rd = parseDate(c.receiveDate);
-      if (!rd) return;
-      if (rd.getMonth() === currentMonth && rd.getFullYear() === currentYear) monthTotal += amt;
-      if (c.receiveDate === todayStr) todayTotal += amt;
+      if (rd) {
+        if (rd.getMonth() === currentMonth && rd.getFullYear() === currentYear) monthTotal += amt;
+      } else if (c.date) {
+        // Parse DD-Mon-YYYY format
+        const [, monthStr, yearStr] = c.date.split('-');
+        const monthIdx = months.indexOf(monthStr);
+        if (monthIdx === currentMonth && parseInt(yearStr) === currentYear) monthTotal += amt;
+      }
     });
 
     return { monthTotal, todayTotal };
