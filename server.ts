@@ -1022,6 +1022,26 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // ── CTN list (for Incomes filter) ──────────────────────────────────────────
+  // Returns CTN numbers with their associated telecalling/technical staff names
+  app.get('/api/contacts/ctn-list', async (req, res) => {
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('ctn, tele_calling_staff, technical_staff, customer_name')
+      .not('ctn', 'is', null)
+      .order('ctn', { ascending: true });
+    if (error) return res.status(500).json({ message: error.message });
+    const list = (data || [])
+      .filter((r: any) => (r.ctn || '').trim() !== '')
+      .map((r: any) => ({
+        ctn: (r.ctn || '').trim(),
+        teleCallingStaff: r.tele_calling_staff || '',
+        technicalStaff: r.technical_staff || '',
+        customerName: r.customer_name || '',
+      }));
+    res.json(list);
+  });
+
   // ── INCOMES (Account / Admin) ─────────────────────────────────────────────
   // Auto-create incomes table if it doesn't exist
   const { error: incCheck } = await supabase.from('incomes').select('id').limit(1);

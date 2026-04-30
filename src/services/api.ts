@@ -78,6 +78,7 @@ deleteDropdownOption: (category: string, label: string) =>
 
 // Incomes (Account / Admin)
 getIncomes: () => request<any[]>('/incomes'),
+getCtnList: () => request<any[]>('/contacts/ctn-list'),
 createIncome: (income: any) => request<any>('/incomes', { method: 'POST', body: JSON.stringify(income) }),
 updateIncome: (id: string, income: any) => request<any>(`/incomes/${id}`, { method: 'PUT', body: JSON.stringify(income) }),
 deleteIncome: (id: string) => request<void>(`/incomes/${id}`, { method: 'DELETE' }),
