@@ -76,4 +76,16 @@ renameDropdownOption: (category: string, oldLabel: string, newLabel: string) =>
 deleteDropdownOption: (category: string, label: string) =>
   request<any>('/dropdown-options', { method: 'DELETE', body: JSON.stringify({ category, label }) }),
 
+// Incomes (Account / Admin)
+getIncomes: () => request<any[]>('/incomes'),
+createIncome: (income: any) => request<any>('/incomes', { method: 'POST', body: JSON.stringify(income) }),
+updateIncome: (id: string, income: any) => request<any>(`/incomes/${id}`, { method: 'PUT', body: JSON.stringify(income) }),
+deleteIncome: (id: string) => request<void>(`/incomes/${id}`, { method: 'DELETE' }),
+
+// Expenses (Account / Admin)
+getExpenses: () => request<any[]>('/expenses'),
+createExpense: (expense: any) => request<any>('/expenses', { method: 'POST', body: JSON.stringify(expense) }),
+updateExpense: (id: string, expense: any) => request<any>(`/expenses/${id}`, { method: 'PUT', body: JSON.stringify(expense) }),
+deleteExpense: (id: string) => request<void>(`/expenses/${id}`, { method: 'DELETE' }),
+
 };

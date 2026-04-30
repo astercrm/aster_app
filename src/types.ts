@@ -40,7 +40,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'User' | 'Technical' | 'TeleCalling';
+  role: 'Admin' | 'User' | 'Technical' | 'TeleCalling' | 'Account';
   avatar?: string;
   phone?: string;
   location?: string;
@@ -53,4 +53,33 @@ export interface Notification {
   type: 'info' | 'reminder' | 'update';
   timestamp: string;
   isRead: boolean;
+}
+
+export interface Income {
+  id: string;
+  date: string;
+  staffName: string;
+  staffRole: 'TeleCalling' | 'Technical';
+  serviceCharges: string;
+  paymentStatus: string;
+  receiveAmount: string;
+  transactionId: string;
+  receiveDate: string;
+  screenshotImage: string;
+  bankTransactionId: string;
+  employeeTransactionId: string;
+  isVerified: boolean;
+  createdAt: string;
+}
+
+export interface Expense {
+  id: string;
+  date: string;
+  productName: string;
+  quantity: number;
+  amount: string;
+  transactionId: string;
+  billScreenshot: string;
+  productScreenshot: string;
+  createdAt: string;
 }

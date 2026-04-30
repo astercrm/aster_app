@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Users, UserPlus, Star, TrendingUp, Phone, MessageSquare, MapPin, Building2 } from 'lucide-react';
+import { Users, UserPlus, Star, TrendingUp, Phone, MessageSquare, MapPin, Building2, IndianRupee, CalendarDays, Wallet } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
   AreaChart, 
@@ -259,6 +259,53 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
   const [dashboardStats, setDashboardStats] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [staffFilter, setStaffFilter] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState<'TeleCalling' | 'Technical'>('TeleCalling');
+  const [dropdownOptions, setDropdownOptions] = useState<Record<string, string[]>>({});
+
+  // Fetch dropdown options for staff names
+  useEffect(() => {
+    api.getDropdownOptions().then(setDropdownOptions).catch(() => {});
+  }, []);
+
+  // Parse receiveDate (YYYY-MM-DD format) helper
+  const parseDate = (d: string) => {
+    if (!d) return null;
+    const p = new Date(d);
+    return isNaN(p.getTime()) ? null : p;
+  };
+
+  // ── Amount calculations ──
+  const amountStats = useMemo(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().slice(0, 10);
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    let monthTotal = 0;
+    let todayTotal = 0;
+
+    contacts.forEach(c => {
+      const amt = parseFloat(c.receiveAmount || '0') || 0;
+      if (amt <= 0) return;
+      const rd = parseDate(c.receiveDate);
+      if (!rd) return;
+      if (rd.getMonth() === currentMonth && rd.getFullYear() === currentYear) monthTotal += amt;
+      if (c.receiveDate === todayStr) todayTotal += amt;
+    });
+
+    return { monthTotal, todayTotal };
+  }, [contacts]);
+
+  // ── Staff-filtered amount (admin only) ──
+  const staffAmount = useMemo(() => {
+    if (!staffFilter) return 0;
+    const field = staffRoleFilter === 'TeleCalling' ? 'teleCallingStaff' : 'technicalStaff';
+    return contacts.reduce((sum, c) => {
+      if ((c as any)[field] !== staffFilter) return sum;
+      return sum + (parseFloat(c.receiveAmount || '0') || 0);
+    }, 0);
+  }, [contacts, staffFilter, staffRoleFilter]);
 
   const localStats = useMemo(() => {
     const total = contacts.length;
@@ -276,7 +323,7 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
     }).length;
 
     return [
-      { label: 'Total Contacts', value: total.toLocaleString(), icon: Users, color: 'bg-blue-500', trend: '+12%' },
+      { label: 'Total Lead', value: total.toLocaleString(), icon: Users, color: 'bg-blue-500', trend: '+12%' },
       { label: 'New This Month', value: newThisMonth.toLocaleString(), icon: UserPlus, color: 'bg-primary', trend: '+5%' },
       { label: 'Favorites', value: favorites.toLocaleString(), icon: Star, color: 'bg-amber-500', trend: '+2%' },
       { label: 'Active Today', value: activeToday.toLocaleString(), icon: TrendingUp, color: 'bg-violet-500', trend: '+18%' },
@@ -358,6 +405,58 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
           ))
         )}
       </div>
+
+      {/* ── Amount Stats Cards (Admin only) ── */}
+      {user?.role === 'Admin' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* This Month Total */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-2xl shadow-lg shadow-emerald-500/20 text-white">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 rounded-xl bg-white/20"><CalendarDays size={20} /></div>
+              <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-full">This Month</span>
+            </div>
+            <p className="text-sm font-medium text-white/80">This Month Total</p>
+            <h3 className="text-2xl font-black mt-1">₹{amountStats.monthTotal.toLocaleString('en-IN')}</h3>
+          </motion.div>
+
+          {/* Today Total */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+            className="bg-gradient-to-br from-violet-500 to-purple-600 p-6 rounded-2xl shadow-lg shadow-violet-500/20 text-white">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 rounded-xl bg-white/20"><IndianRupee size={20} /></div>
+              <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-full">Today</span>
+            </div>
+            <p className="text-sm font-medium text-white/80">Today Total</p>
+            <h3 className="text-2xl font-black mt-1">₹{amountStats.todayTotal.toLocaleString('en-IN')}</h3>
+          </motion.div>
+
+          {/* Staff Receive Amount */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="bg-gradient-to-br from-sky-500 to-blue-600 p-6 rounded-2xl shadow-lg shadow-sky-500/20 text-white">
+            <div className="flex items-center justify-between mb-3">
+              <div className="p-2.5 rounded-xl bg-white/20"><Wallet size={20} /></div>
+              <span className="text-xs font-bold bg-white/20 px-2 py-1 rounded-full">Staff</span>
+            </div>
+            <div className="flex gap-2 mb-2">
+              <select value={staffRoleFilter} onChange={e => { setStaffRoleFilter(e.target.value as any); setStaffFilter(''); }}
+                className="bg-white/20 border-none rounded-lg px-2 py-1 text-xs font-bold text-white outline-none">
+                <option value="TeleCalling" className="text-gray-900">TeleCalling</option>
+                <option value="Technical" className="text-gray-900">Technical</option>
+              </select>
+              <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)}
+                className="bg-white/20 border-none rounded-lg px-2 py-1 text-xs font-bold text-white outline-none flex-1">
+                <option value="" className="text-gray-900">All Staff</option>
+                {(dropdownOptions[staffRoleFilter === 'TeleCalling' ? 'teleCallingStaff' : 'technicalStaff'] || []).map(s =>
+                  <option key={s} value={s} className="text-gray-900">{s}</option>
+                )}
+              </select>
+            </div>
+            <h3 className="text-2xl font-black">₹{staffAmount.toLocaleString('en-IN')}</h3>
+            <p className="text-xs text-white/70 mt-0.5">{staffFilter || 'All'} — {staffRoleFilter} receive total</p>
+          </motion.div>
+        </div>
+      )}
 
       {/* Chart */}
       <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">

@@ -62,7 +62,7 @@ export default function Sidebar({ isOpen, toggle, user }: SidebarProps) {
 
       <nav className="flex-1 px-3 py-4 space-y-1">
         {navItems
-          .filter(item => !item.adminOnly || (item.adminOnly && user?.role === 'Admin'))
+          .filter(item => !item.adminOnly || (item.adminOnly && (user?.role === 'Admin' || user?.role === 'Account')))
           .map((item) => (
             <NavLink
               key={item.path}

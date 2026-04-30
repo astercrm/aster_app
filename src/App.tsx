@@ -101,7 +101,7 @@ useEffect(() => {
                     <Route path="/" element={<Dashboard contacts={contacts} user={user} />} />
                     <Route path="/contacts" element={<Contacts contacts={contacts} setContacts={setContacts} user={user} />} />
                     <Route path="/favorites" element={<Favorites contacts={contacts} setContacts={setContacts} />} />
-                    <Route path="/admin" element={user.role === 'Admin' ? <AdminPanel /> : <Navigate to="/" />} />
+                    <Route path="/admin" element={user.role === 'Admin' || user.role === 'Account' ? <AdminPanel user={user} /> : <Navigate to="/" />} />
                     <Route path="/settings" element={<Settings theme={theme} setTheme={setTheme} user={user} setUser={setUser} />} />
                     <Route path="*" element={<Navigate to="/" />} />
                   </Routes>

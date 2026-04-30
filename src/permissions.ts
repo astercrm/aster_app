@@ -3,7 +3,7 @@
 // Defines which contact fields each role can see / create / edit
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type AppRole = 'Admin' | 'User' | 'Technical' | 'TeleCalling';
+export type AppRole = 'Admin' | 'User' | 'Technical' | 'TeleCalling' | 'Account';
 
 export interface RolePermissions {
   // Contact list / table
@@ -126,6 +126,20 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     editableFields: ['ctn_to_current_status', 'salary_amount', 'screenshot'], // telecalling_share is view-only
     canAccessAdmin: false,
   },
+
+  // Account: View-only contacts, access admin panel for Incomes/Expenses
+  Account: {
+    canViewContacts: true,
+    canCreateContact: false,
+    canEditContact: false,
+    canDeleteContact: false,
+    canBulkUpload: false,
+    canExport: true,
+    canToggleFavorite: false,
+    visibleFields: ['ctn_to_remarks', 'salary_amount', 'technical_share', 'telecalling_share'],
+    editableFields: [],
+    canAccessAdmin: true,
+  },
 };
 
 // ─── Helper: is a field visible for a role? ───────────────────────────────────
@@ -156,6 +170,7 @@ export const ROLE_BADGE_COLORS: Record<AppRole, string> = {
   User:        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   Technical:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   TeleCalling: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  Account:     'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300',
 };
 
-export const ALL_ROLES: AppRole[] = ['Admin', 'User', 'Technical', 'TeleCalling'];
+export const ALL_ROLES: AppRole[] = ['Admin', 'User', 'Technical', 'TeleCalling', 'Account'];

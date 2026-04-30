@@ -3,14 +3,17 @@ import {
   ShieldCheck, UserPlus, Search, Edit2, Trash2, User,
   Shield, Lock, Users, TrendingUp, Activity, Clock, Wifi, WifiOff,
   RefreshCw, LogIn, FilePlus, FileEdit, AlertCircle, CalendarDays,
-  ChevronLeft, ChevronRight, CheckCircle2,
+  ChevronLeft, ChevronRight, CheckCircle2, Plus, X, Upload, Image as ImageIcon,
+  DollarSign, ShoppingCart, Loader2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { api } from '../services/api';
+import IncomesSection from '../components/IncomesSection';
+import ExpensesSection from '../components/ExpensesSection';
 import { ALL_ROLES, ROLE_BADGE_COLORS, type AppRole } from '../permissions';
 
-export default function AdminPanel() {
+export default function AdminPanel({ user: currentUser }: { user?: any }) {
   // ── Users state ──────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<any[]>([]);
@@ -24,7 +27,9 @@ export default function AdminPanel() {
   const [isSaving, setIsSaving] = useState(false);
 
   // ── Activity state ────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'attendance'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'activity' | 'attendance' | 'incomes' | 'expenses'>(
+    currentUser?.role === 'Account' ? 'incomes' : 'users'
+  );
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [activitySummary, setActivitySummary] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
@@ -218,7 +223,10 @@ export default function AdminPanel() {
 
       {/* ── TABS ──────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl w-fit flex-wrap">
-        {(['users', 'activity', 'attendance'] as const).map(tab => (
+        {(currentUser?.role === 'Account'
+          ? (['incomes', 'expenses'] as const)
+          : (['users', 'activity', 'attendance', 'incomes', 'expenses'] as const)
+        ).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -229,8 +237,8 @@ export default function AdminPanel() {
                 : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
             )}
           >
-            {tab === 'users' ? <Users size={16} /> : tab === 'activity' ? <Activity size={16} /> : <CalendarDays size={16} />}
-            {tab === 'users' ? 'Users' : tab === 'activity' ? 'Employee Activity' : 'Attendance'}
+            {tab === 'users' ? <Users size={16} /> : tab === 'activity' ? <Activity size={16} /> : tab === 'attendance' ? <CalendarDays size={16} /> : tab === 'incomes' ? <DollarSign size={16} /> : <ShoppingCart size={16} />}
+            {tab === 'users' ? 'Users' : tab === 'activity' ? 'Employee Activity' : tab === 'attendance' ? 'Attendance' : tab === 'incomes' ? 'Incomes' : 'Expenses'}
           </button>
         ))}
       </div>
@@ -661,6 +669,12 @@ export default function AdminPanel() {
           </div>
         );
       })()}
+
+      {/* ── INCOMES SECTION ──────────────────────────────────────────────── */}
+      {activeTab === 'incomes' && <IncomesSection />}
+
+      {/* ── EXPENSES SECTION ─────────────────────────────────────────────── */}
+      {activeTab === 'expenses' && <ExpensesSection />}
 
 
       {isModalOpen && (

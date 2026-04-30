@@ -499,7 +499,7 @@ async function startServer() {
 
     res.json({
       summary: [
-        { label: 'Total Contacts', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
+        { label: 'Total Lead', value: total.toLocaleString(), icon: 'Users', color: 'bg-blue-500', trend: '+12%' },
         { label: 'Favorites', value: favorites.toLocaleString(), icon: 'Star', color: 'bg-amber-500', trend: '+2%' },
         { label: 'Active Today', value: activeToday.toLocaleString(), icon: 'TrendingUp', color: 'bg-violet-500', trend: '+18%' },
       ],
@@ -1018,6 +1018,251 @@ async function startServer() {
       .delete()
       .eq('category', category)
       .eq('label', label);
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({ success: true });
+  });
+
+  // ── INCOMES (Account / Admin) ─────────────────────────────────────────────
+  // Auto-create incomes table if it doesn't exist
+  const { error: incCheck } = await supabase.from('incomes').select('id').limit(1);
+  if (incCheck && (incCheck.code === '42P01' || incCheck.message?.includes('does not exist'))) {
+    console.log('📦 Creating incomes table...');
+    const incSQL = `CREATE TABLE IF NOT EXISTS incomes (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date TEXT, staff_name TEXT, staff_role TEXT, service_charges TEXT, payment_status TEXT, receive_amount TEXT, transaction_id TEXT, receive_date TEXT, screenshot_image TEXT, bank_transaction_id TEXT, employee_transaction_id TEXT, is_verified BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT now());`;
+    await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ query: incSQL }),
+    }).catch(() => null);
+    // Fallback: try via the Supabase SQL API
+    await fetch(`${supabaseUrl}/pg/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ query: incSQL }),
+    }).catch(() => null);
+    console.log('⚠️  If the incomes table was not auto-created, run this SQL in Supabase SQL Editor:');
+    console.log(`  CREATE TABLE IF NOT EXISTS incomes (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date TEXT, staff_name TEXT, staff_role TEXT, service_charges TEXT, payment_status TEXT, receive_amount TEXT, transaction_id TEXT, receive_date TEXT, screenshot_image TEXT, bank_transaction_id TEXT, employee_transaction_id TEXT, is_verified BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT now());`);
+  }
+
+  // Auto-create expenses table if it doesn't exist
+  const { error: expCheck } = await supabase.from('expenses').select('id').limit(1);
+  if (expCheck && (expCheck.code === '42P01' || expCheck.message?.includes('does not exist'))) {
+    console.log('📦 Creating expenses table...');
+    const expSQL = `CREATE TABLE IF NOT EXISTS expenses (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date TEXT, product_name TEXT, quantity INT DEFAULT 1, amount TEXT, transaction_id TEXT, bill_screenshot TEXT, product_screenshot TEXT, created_at TIMESTAMPTZ DEFAULT now());`;
+    await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ query: expSQL }),
+    }).catch(() => null);
+    await fetch(`${supabaseUrl}/pg/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey, 'Authorization': `Bearer ${supabaseKey}` },
+      body: JSON.stringify({ query: expSQL }),
+    }).catch(() => null);
+    console.log('⚠️  If the expenses table was not auto-created, run this SQL in Supabase SQL Editor:');
+    console.log(`  CREATE TABLE IF NOT EXISTS expenses (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, date TEXT, product_name TEXT, quantity INT DEFAULT 1, amount TEXT, transaction_id TEXT, bill_screenshot TEXT, product_screenshot TEXT, created_at TIMESTAMPTZ DEFAULT now());`);
+  }
+
+  // ── Seed income/expense dropdown defaults if missing ──
+  const incExpDefaults = [
+    { category: 'incomePaymentStatuses', label: 'Full Paid', sort_order: 1 },
+    { category: 'incomePaymentStatuses', label: 'Partially Paid', sort_order: 2 },
+    { category: 'incomePaymentStatuses', label: 'Pending', sort_order: 3 },
+    { category: 'expenseProducts', label: 'Office Supplies', sort_order: 1 },
+    { category: 'expenseProducts', label: 'Electronics', sort_order: 2 },
+    { category: 'expenseProducts', label: 'Furniture', sort_order: 3 },
+    { category: 'expenseProducts', label: 'Software', sort_order: 4 },
+    { category: 'expenseProducts', label: 'Travel', sort_order: 5 },
+    { category: 'expenseProducts', label: 'Food', sort_order: 6 },
+    { category: 'expenseProducts', label: 'Utilities', sort_order: 7 },
+    { category: 'expenseProducts', label: 'Other', sort_order: 8 },
+  ];
+  for (const item of incExpDefaults) {
+    try { await supabase.from('dropdown_options').upsert(item, { onConflict: 'category,label', ignoreDuplicates: true }); } catch {}
+  }
+
+  app.get('/api/incomes', async (req, res) => {
+    const { data, error } = await supabase
+      .from('incomes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ message: error.message });
+    res.json((data || []).map((r: any) => ({
+      id: r.id,
+      date: r.date || '',
+      staffName: r.staff_name || '',
+      staffRole: r.staff_role || '',
+      serviceCharges: r.service_charges || '',
+      paymentStatus: r.payment_status || '',
+      receiveAmount: r.receive_amount || '',
+      transactionId: r.transaction_id || '',
+      receiveDate: r.receive_date || '',
+      screenshotImage: r.screenshot_image || '',
+      bankTransactionId: r.bank_transaction_id || '',
+      employeeTransactionId: r.employee_transaction_id || '',
+      isVerified: r.is_verified || false,
+      createdAt: r.created_at || '',
+    })));
+  });
+
+  app.post('/api/incomes', async (req, res) => {
+    const b = req.body;
+    const bankId = (b.bankTransactionId || '').trim();
+    const empId = (b.employeeTransactionId || '').trim();
+    const isVerified = bankId !== '' && empId !== '' && bankId === empId;
+    const row = {
+      date: b.date,
+      staff_name: b.staffName,
+      staff_role: b.staffRole,
+      service_charges: b.serviceCharges,
+      payment_status: b.paymentStatus,
+      receive_amount: b.receiveAmount,
+      transaction_id: b.transactionId,
+      receive_date: b.receiveDate,
+      screenshot_image: b.screenshotImage,
+      bank_transaction_id: bankId,
+      employee_transaction_id: empId,
+      is_verified: isVerified,
+    };
+    const { data, error } = await supabase.from('incomes').insert(row).select().single();
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({
+      id: data.id,
+      date: data.date || '',
+      staffName: data.staff_name || '',
+      staffRole: data.staff_role || '',
+      serviceCharges: data.service_charges || '',
+      paymentStatus: data.payment_status || '',
+      receiveAmount: data.receive_amount || '',
+      transactionId: data.transaction_id || '',
+      receiveDate: data.receive_date || '',
+      screenshotImage: data.screenshot_image || '',
+      bankTransactionId: data.bank_transaction_id || '',
+      employeeTransactionId: data.employee_transaction_id || '',
+      isVerified: data.is_verified || false,
+      createdAt: data.created_at || '',
+    });
+  });
+
+  app.put('/api/incomes/:id', async (req, res) => {
+    const b = req.body;
+    const bankId = (b.bankTransactionId || '').trim();
+    const empId = (b.employeeTransactionId || '').trim();
+    const isVerified = bankId !== '' && empId !== '' && bankId === empId;
+    const row = {
+      date: b.date,
+      staff_name: b.staffName,
+      staff_role: b.staffRole,
+      service_charges: b.serviceCharges,
+      payment_status: b.paymentStatus,
+      receive_amount: b.receiveAmount,
+      transaction_id: b.transactionId,
+      receive_date: b.receiveDate,
+      screenshot_image: b.screenshotImage,
+      bank_transaction_id: bankId,
+      employee_transaction_id: empId,
+      is_verified: isVerified,
+    };
+    const { data, error } = await supabase.from('incomes').update(row).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({
+      id: data.id,
+      date: data.date || '',
+      staffName: data.staff_name || '',
+      staffRole: data.staff_role || '',
+      serviceCharges: data.service_charges || '',
+      paymentStatus: data.payment_status || '',
+      receiveAmount: data.receive_amount || '',
+      transactionId: data.transaction_id || '',
+      receiveDate: data.receive_date || '',
+      screenshotImage: data.screenshot_image || '',
+      bankTransactionId: data.bank_transaction_id || '',
+      employeeTransactionId: data.employee_transaction_id || '',
+      isVerified: data.is_verified || false,
+      createdAt: data.created_at || '',
+    });
+  });
+
+  app.delete('/api/incomes/:id', async (req, res) => {
+    const { error } = await supabase.from('incomes').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({ success: true });
+  });
+
+  // ── EXPENSES (Account / Admin) ────────────────────────────────────────────
+
+  app.get('/api/expenses', async (req, res) => {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) return res.status(500).json({ message: error.message });
+    res.json((data || []).map((r: any) => ({
+      id: r.id,
+      date: r.date || '',
+      productName: r.product_name || '',
+      quantity: r.quantity || 1,
+      amount: r.amount || '',
+      transactionId: r.transaction_id || '',
+      billScreenshot: r.bill_screenshot || '',
+      productScreenshot: r.product_screenshot || '',
+      createdAt: r.created_at || '',
+    })));
+  });
+
+  app.post('/api/expenses', async (req, res) => {
+    const b = req.body;
+    const row = {
+      date: b.date,
+      product_name: b.productName,
+      quantity: b.quantity || 1,
+      amount: b.amount,
+      transaction_id: b.transactionId,
+      bill_screenshot: b.billScreenshot,
+      product_screenshot: b.productScreenshot,
+    };
+    const { data, error } = await supabase.from('expenses').insert(row).select().single();
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({
+      id: data.id,
+      date: data.date || '',
+      productName: data.product_name || '',
+      quantity: data.quantity || 1,
+      amount: data.amount || '',
+      transactionId: data.transaction_id || '',
+      billScreenshot: data.bill_screenshot || '',
+      productScreenshot: data.product_screenshot || '',
+      createdAt: data.created_at || '',
+    });
+  });
+
+  app.put('/api/expenses/:id', async (req, res) => {
+    const b = req.body;
+    const row = {
+      date: b.date,
+      product_name: b.productName,
+      quantity: b.quantity || 1,
+      amount: b.amount,
+      transaction_id: b.transactionId,
+      bill_screenshot: b.billScreenshot,
+      product_screenshot: b.productScreenshot,
+    };
+    const { data, error } = await supabase.from('expenses').update(row).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ message: error.message });
+    res.json({
+      id: data.id,
+      date: data.date || '',
+      productName: data.product_name || '',
+      quantity: data.quantity || 1,
+      amount: data.amount || '',
+      transactionId: data.transaction_id || '',
+      billScreenshot: data.bill_screenshot || '',
+      productScreenshot: data.product_screenshot || '',
+      createdAt: data.created_at || '',
+    });
+  });
+
+  app.delete('/api/expenses/:id', async (req, res) => {
+    const { error } = await supabase.from('expenses').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ message: error.message });
     res.json({ success: true });
   });

@@ -70,7 +70,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [isDropdownManagerOpen, setIsDropdownManagerOpen] = useState(false);
-  const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'teleCallingStaff' | 'technicalStaff' | 'branches' | 'paymentStatuses'>('serviceTypes');
+  const [dropdownManagerTab, setDropdownManagerTab] = useState<'serviceTypes' | 'statuses' | 'teleCallingStaff' | 'technicalStaff' | 'branches' | 'paymentStatuses' | 'incomePaymentStatuses' | 'expenseProducts'>('serviceTypes');
   const [newDropdownItem, setNewDropdownItem] = useState('');
   // Duplicate warning state
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -96,6 +96,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [customTechnicalStaff, setCustomTechnicalStaff] = useState<string[]>(defaultStaff);
   const [customBranches, setCustomBranches] = useState<string[]>(defaultBranches);
   const [customPaymentStatuses, setCustomPaymentStatuses] = useState<string[]>(defaultPaymentStatuses);
+  const [customIncomePaymentStatuses, setCustomIncomePaymentStatuses] = useState<string[]>(['Full Paid', 'Partially Paid', 'Pending']);
+  const [customExpenseProducts, setCustomExpenseProducts] = useState<string[]>(['Office Supplies', 'Electronics', 'Furniture', 'Software', 'Travel', 'Food', 'Utilities', 'Other']);
   const [renamingItem, setRenamingItem] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -109,6 +111,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
         if (grouped.technicalStaff?.length) setCustomTechnicalStaff(grouped.technicalStaff);
         if (grouped.branches?.length) setCustomBranches(grouped.branches);
         if (grouped.paymentStatuses?.length) setCustomPaymentStatuses(grouped.paymentStatuses);
+        if (grouped.incomePaymentStatuses?.length) setCustomIncomePaymentStatuses(grouped.incomePaymentStatuses);
+        if (grouped.expenseProducts?.length) setCustomExpenseProducts(grouped.expenseProducts);
       })
       .catch(err => console.warn('Failed to load dropdown options:', err));
   }, []);
@@ -120,6 +124,8 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
     technicalStaff: { label: 'Technical Staff', list: customTechnicalStaff, setList: setCustomTechnicalStaff, category: 'technicalStaff' },
     branches: { label: 'Branches / Locations', list: customBranches, setList: setCustomBranches, category: 'branches' },
     paymentStatuses: { label: 'Payment Status Options', list: customPaymentStatuses, setList: setCustomPaymentStatuses, category: 'paymentStatuses' },
+    incomePaymentStatuses: { label: 'Income Payment Statuses', list: customIncomePaymentStatuses, setList: setCustomIncomePaymentStatuses, category: 'incomePaymentStatuses' },
+    expenseProducts: { label: 'Expense Product Names', list: customExpenseProducts, setList: setCustomExpenseProducts, category: 'expenseProducts' },
   };
 
   const handleAddDropdownItem = async () => {
