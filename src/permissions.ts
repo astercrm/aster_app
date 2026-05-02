@@ -138,17 +138,17 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissions> = {
     canAccessAdmin: false,
   },
 
-  // Account: View-only contacts, access admin panel for Incomes/Expenses
+  // Account: Can view and edit contacts, access admin panel for Incomes/Expenses
   Account: {
     canViewContacts: true,
     canCreateContact: false,
-    canEditContact: false,
+    canEditContact: true,
     canDeleteContact: false,
     canBulkUpload: false,
     canExport: true,
     canToggleFavorite: false,
     visibleFields: ['ctn_to_remarks', 'salary_amount', 'technical_share', 'telecalling_share'],
-    editableFields: [],
+    editableFields: ['ctn_to_remarks', 'salary_amount', 'technical_share', 'telecalling_share'],
     canAccessAdmin: true,
   },
 };

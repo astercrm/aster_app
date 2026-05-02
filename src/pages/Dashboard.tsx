@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Users, UserPlus, Star, TrendingUp, Phone, MessageSquare, MapPin, Building2, IndianRupee, CalendarDays, Wallet } from 'lucide-react';
+import { Users, UserPlus, Star, TrendingUp, Phone, MessageSquare, MapPin, Building2, IndianRupee, CalendarDays, Wallet, Hash, UserCheck, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
   AreaChart, 
@@ -262,6 +262,8 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
   const [staffFilter, setStaffFilter] = useState('');
   const [staffRoleFilter, setStaffRoleFilter] = useState<'TeleCalling' | 'Technical'>('TeleCalling');
   const [dropdownOptions, setDropdownOptions] = useState<Record<string, string[]>>({});
+  const [leadsStaffFilter, setLeadsStaffFilter] = useState('');
+  const [leadsStaffRoleFilter, setLeadsStaffRoleFilter] = useState<'TeleCalling' | 'Technical'>('TeleCalling');
 
   // Fetch dropdown options for staff names
   useEffect(() => {
@@ -325,6 +327,41 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
       return sum + (parseFloat(c.receiveAmount || '0') || 0);
     }, 0);
   }, [contacts, staffFilter, staffRoleFilter]);
+
+  // ── Today's CTN range (all roles) ──
+  const todayCtnRange = useMemo(() => {
+    const today = new Date();
+    const todayDMY = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+    const todayISO = today.toISOString().slice(0, 10);
+    const todayContacts = contacts.filter(c => {
+      if (!c.ctn) return false;
+      return c.date === todayDMY || c.date === todayISO;
+    });
+    if (todayContacts.length === 0) return { first: null, last: null, count: 0 };
+    return {
+      first: todayContacts[todayContacts.length - 1]?.ctn || null,
+      last: todayContacts[0]?.ctn || null,
+      count: todayContacts.length,
+    };
+  }, [contacts]);
+
+  // ── Staff leads created today (all roles, filterable by TeleCalling / Technical) ──
+  const staffLeadsToday = useMemo(() => {
+    const today = new Date();
+    const todayDMY = today.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+    const todayISO = today.toISOString().slice(0, 10);
+    const todayContacts = contacts.filter(c => c.date === todayDMY || c.date === todayISO);
+    const staffField = leadsStaffRoleFilter === 'TeleCalling' ? 'teleCallingStaff' : 'technicalStaff';
+    const staffMap: Record<string, { name: string; count: number; latestCtn: string }> = {};
+    todayContacts.forEach(c => {
+      const staffName = ((c as any)[staffField] || '').trim();
+      if (!staffName) return;
+      if (!staffMap[staffName]) staffMap[staffName] = { name: staffName, count: 0, latestCtn: '' };
+      staffMap[staffName].count++;
+      if (!staffMap[staffName].latestCtn && c.ctn) staffMap[staffName].latestCtn = c.ctn;
+    });
+    return Object.values(staffMap).sort((a, b) => b.count - a.count);
+  }, [contacts, leadsStaffRoleFilter]);
 
   const localStats = useMemo(() => {
     const total = contacts.length;
@@ -476,6 +513,133 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
           </motion.div>
         </div>
       )}
+
+      {/* ── Today's CTN Range + Staff Leads Today (all roles) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Today CTN Range Card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+          className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-orange-500 to-rose-500 text-white shadow-md shadow-orange-500/20">
+              <Hash size={18} />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-gray-900 dark:text-white">Today's CTN Numbers</h3>
+              <p className="text-[11px] text-gray-400 dark:text-slate-500">First to last CTN created today</p>
+            </div>
+          </div>
+          <div className="p-5">
+            {todayCtnRange && todayCtnRange.count > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 bg-gradient-to-r from-orange-50 to-rose-50 dark:from-orange-900/10 dark:to-rose-900/10 rounded-xl p-3 border border-orange-100 dark:border-orange-800/30">
+                    <p className="text-[10px] font-bold text-orange-500 dark:text-orange-400 uppercase tracking-wider mb-1">First CTN</p>
+                    <p className="text-lg font-black text-gray-900 dark:text-white font-mono">{todayCtnRange.first}</p>
+                  </div>
+                  <div className="text-gray-300 dark:text-slate-600 font-bold text-xl">→</div>
+                  <div className="flex-1 bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-900/10 dark:to-pink-900/10 rounded-xl p-3 border border-rose-100 dark:border-rose-800/30">
+                    <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider mb-1">Last CTN</p>
+                    <p className="text-lg font-black text-gray-900 dark:text-white font-mono">{todayCtnRange.last}</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <span className="px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-bold">
+                    {todayCtnRange.count} CTN{todayCtnRange.count !== 1 ? 's' : ''} created today
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-400 dark:text-slate-500">No CTN numbers created today yet.</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* Staff Leads Today Card */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+          className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
+          <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md shadow-indigo-500/20">
+                  <UserCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900 dark:text-white">Staff Leads Today</h3>
+                  <p className="text-[11px] text-gray-400 dark:text-slate-500">New leads created today by staff</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter size={14} className="text-gray-400" />
+                <select
+                  value={leadsStaffFilter}
+                  onChange={e => setLeadsStaffFilter(e.target.value)}
+                  className="text-xs bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-2 py-1.5 font-bold text-gray-600 dark:text-slate-300 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                >
+                  <option value="">All Staff</option>
+                  {staffLeadsToday.map(s => (
+                    <option key={s.name} value={s.name}>{s.name} ({s.count})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {/* TeleCalling / Technical toggle */}
+            <div className="flex gap-2">
+              {(['TeleCalling', 'Technical'] as const).map(role => (
+                <button
+                  key={role}
+                  onClick={() => { setLeadsStaffRoleFilter(role); setLeadsStaffFilter(''); }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    leadsStaffRoleFilter === role
+                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {role === 'TeleCalling' ? 'TeleCalling Staff' : 'Technical Staff'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="overflow-x-auto max-h-[250px] overflow-y-auto">
+            {staffLeadsToday.length === 0 ? (
+              <div className="p-6 text-center text-sm text-gray-400 dark:text-slate-500">No leads created today yet.</div>
+            ) : (
+              <table className="w-full text-left">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50/80 dark:bg-slate-800/80 text-[10px] uppercase tracking-wider font-bold text-gray-500 dark:text-slate-400">
+                    <th className="px-5 py-2.5">{leadsStaffRoleFilter} Staff</th>
+                    <th className="px-5 py-2.5 text-center">Leads Created</th>
+                    <th className="px-5 py-2.5">Latest CTN</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {staffLeadsToday
+                    .filter(s => !leadsStaffFilter || s.name === leadsStaffFilter)
+                    .map(s => (
+                    <tr key={s.name} className="hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition-colors">
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xs font-bold">
+                            {s.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-gray-900 dark:text-white">{s.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <span className="inline-flex items-center justify-center min-w-[28px] h-7 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-black px-2">
+                          {s.count}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-xs text-gray-500 dark:text-slate-400">{s.latestCtn || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </motion.div>
+      </div>
 
       {/* Chart */}
       <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800">

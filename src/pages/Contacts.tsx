@@ -1132,7 +1132,7 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
       {/* Desktop Table */}
       <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left min-w-[5000px]">
+          <table className="w-full text-left" style={{ minWidth: '1800px' }}>
             <thead>
               <tr className="bg-gray-50/50 dark:bg-slate-800/50 text-gray-500 dark:text-slate-400 text-[11px] uppercase tracking-wider font-bold border-b border-gray-100 dark:border-slate-800">
                 {userRole === 'Admin' && (
@@ -1141,10 +1141,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                   </th>
                 )}
                 {/* ── Frozen columns (sticky) ── */}
-                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[100px]", userRole === 'Admin' ? 'left-10' : 'left-0')}>CTN</th>
-                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[140px]", userRole === 'Admin' ? 'left-[148px]' : 'left-[100px]')}>CUSTOMER NAME</th>
-                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[140px]", userRole === 'Admin' ? 'left-[288px]' : 'left-[240px]')}>PHONE</th>
-                <th className={cn("px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[110px] border-r border-gray-200 dark:border-slate-700", userRole === 'Admin' ? 'left-[428px]' : 'left-[380px]')}>STATUS</th>
+                <th style={{ left: userRole === 'Admin' ? 40 : 0 }} className="px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[100px]">CTN</th>
+                <th style={{ left: userRole === 'Admin' ? 140 : 100 }} className="px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[140px]">CUSTOMER NAME</th>
+                <th style={{ left: userRole === 'Admin' ? 280 : 240 }} className="px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[130px]">PHONE</th>
+                <th style={{ left: userRole === 'Admin' ? 410 : 370 }} className="px-3 py-2 whitespace-nowrap sticky z-20 bg-gray-50 dark:bg-slate-800 min-w-[110px] border-r border-gray-200 dark:border-slate-700">STATUS</th>
                 {/* ── Scrollable columns ── */}
                 <th className="px-3 py-2 whitespace-nowrap">ORDER NUMBER</th>
                 {fv('entryLeads') && <th className="px-3 py-2">ENTRY LEADS</th>}
@@ -1188,10 +1188,10 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     </td>
                   )}
                   {/* ── Frozen cells ── */}
-                  <td className={cn("px-3 py-2 font-mono text-xs text-gray-500 dark:text-slate-400 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[100px]", userRole === 'Admin' ? 'left-12' : 'left-0')}>{contact.ctn || '—'}</td>
-                  <td className={cn("px-3 py-2 font-bold text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[140px]", userRole === 'Admin' ? 'left-[148px]' : 'left-[100px]')}>{contact.customerName || '—'}</td>
-                  <td className={cn("px-3 py-2 text-gray-600 dark:text-slate-300 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[140px]", userRole === 'Admin' ? 'left-[288px]' : 'left-[240px]')}>{contact.customerContactNumber || '—'}</td>
-                  <td className={cn("px-3 py-2 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[110px] border-r border-gray-100 dark:border-slate-800", userRole === 'Admin' ? 'left-[428px]' : 'left-[380px]')}>
+                  <td style={{ left: userRole === 'Admin' ? 40 : 0 }} className="px-3 py-2 font-mono text-xs text-gray-500 dark:text-slate-400 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[100px]">{contact.ctn || '—'}</td>
+                  <td style={{ left: userRole === 'Admin' ? 140 : 100 }} className="px-3 py-2 font-bold text-gray-900 dark:text-white sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[140px]">{contact.customerName || '—'}</td>
+                  <td style={{ left: userRole === 'Admin' ? 280 : 240 }} className="px-3 py-2 text-gray-600 dark:text-slate-300 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[130px]">{contact.customerContactNumber || '—'}</td>
+                  <td style={{ left: userRole === 'Admin' ? 410 : 370 }} className="px-3 py-2 sticky z-10 bg-white dark:bg-slate-900 group-hover:bg-gray-50/50 dark:group-hover:bg-slate-800/30 min-w-[110px] border-r border-gray-100 dark:border-slate-800">
                     <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
                       contact.currentStatus === 'Completed' || contact.currentStatus === 'Complete' ? "bg-primary/10 text-primary dark:bg-primary/20" :
                         contact.currentStatus === 'Pending' ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
