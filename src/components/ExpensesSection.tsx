@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, X, Loader2, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Loader2, Upload, Download } from 'lucide-react';
 import { api } from '../services/api';
 import { motion } from 'motion/react';
 import DropdownManager from './DropdownManager';
@@ -65,6 +65,35 @@ export default function ExpensesSection({ userRole }: { userRole?: string }) {
     try { const { url } = await api.uploadScreenshot(file); setForm({ ...form, [field]: url }); } catch {}
   };
 
+  const downloadCSV = () => {
+    if (expenses.length === 0) return;
+    const headers = ['Date', 'Product Name', 'Quantity', 'Amount', 'Transaction ID', 'Bill Screenshot', 'Product Screenshot', 'Notes'];
+    const csvRows = [
+      headers.join(','),
+      ...expenses.map(exp => [
+        exp.date || '',
+        exp.productName || '',
+        exp.quantity || '',
+        exp.amount || '',
+        exp.transactionId || '',
+        exp.billScreenshot || '',
+        exp.productScreenshot || '',
+        (exp.notes || '').replace(/\r?\n|\r/g, " "),
+      ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ];
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `expenses_report_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const productNames = dropdownOpts['expenseProducts'] || ['Office Supplies', 'Electronics', 'Furniture', 'Software', 'Travel', 'Food', 'Utilities', 'Other'];
   const inputCls = "w-full bg-gray-50 dark:bg-slate-800 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none dark:text-white";
   const totalAmount = expenses.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
@@ -85,6 +114,10 @@ export default function ExpensesSection({ userRole }: { userRole?: string }) {
               onUpdate={refreshDropdowns}
             />
           )}
+          <button onClick={downloadCSV} disabled={expenses.length === 0}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 rounded-xl text-sm font-bold text-white hover:bg-emerald-600 transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed">
+            <Download size={16} /> Download CSV
+          </button>
           <button onClick={() => { resetForm(); setShowForm(true); }}
             className="flex items-center gap-2 px-4 py-2 bg-red-500 rounded-xl text-sm font-bold text-white hover:bg-red-600 transition-all shadow-md shadow-red-500/20">
             <Plus size={16} /> Add Expense

@@ -358,8 +358,20 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
   // ── Expenses by Product Name (Admin only chart) ──
   const expenseProductChartData = useMemo(() => {
     if (!expenses.length) return [];
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth(); // 0-indexed
+
+    const filteredExpenses = expenses.filter(e => {
+      if (!e.date) return false;
+      const expDate = new Date(e.date);
+      if (isNaN(expDate.getTime())) return false;
+      return expDate.getFullYear() === currentYear && expDate.getMonth() === currentMonth;
+    });
+
+    if (!filteredExpenses.length) return [];
     const map: Record<string, number> = {};
-    expenses.forEach(e => {
+    filteredExpenses.forEach(e => {
       const name = e.productName || 'Other';
       map[name] = (map[name] || 0) + (parseFloat(e.amount) || 0);
     });
@@ -807,7 +819,7 @@ export default function Dashboard({ contacts, user }: DashboardProps) {
       <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h3 className="font-bold text-lg dark:text-white">Expense Allocation by Product</h3>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Total spend properly allocated per product category</p>
+          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Total spend properly allocated per product category for the current month</p>
         </div>
         <span className="text-xs font-bold text-red-500 bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-full">Admin Only</span>
       </div>

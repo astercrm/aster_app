@@ -134,7 +134,9 @@ export default function SalarySection({ contacts = [] }: { contacts?: Contact[] 
   // ── save percentage override ──────────────────────────────────────────────
   const savePct = async (staffName: string, staffRole: string) => {
     const key = `${staffName}::${staffRole}`;
-    const pct = parseFloat(pctOverrides[key] || '0');
+    const rule = rules.find(r => r.staffName === staffName && r.staffRole === staffRole);
+    const pctVal = pctOverrides[key] !== undefined ? pctOverrides[key] : (rule ? String(rule.percentage) : '0');
+    const pct = parseFloat(pctVal || '0');
     setSavingKey(key);
     try {
       const existing = rules.find(r => r.staffName === staffName && r.staffRole === staffRole);
@@ -506,8 +508,16 @@ export default function SalarySection({ contacts = [] }: { contacts?: Contact[] 
         const techRows2 = allRows.filter(r => r.staffRole === 'Technical');
         const teleTotal2 = teleRows2.reduce((s, r) => s + r.receiveTotal, 0);
         const techTotal2 = techRows2.reduce((s, r) => s + r.receiveTotal, 0);
-        const teleSal = teleRows2.reduce((s, r) => s + (r.receiveTotal * (parseFloat(pctOverrides[`${r.staffName}::TeleCalling`] ?? '0') || 0)) / 100, 0);
-        const techSal = techRows2.reduce((s, r) => s + (r.receiveTotal * (parseFloat(pctOverrides[`${r.staffName}::Technical`] ?? '0') || 0)) / 100, 0);
+        const teleSal = teleRows2.reduce((s, r) => {
+          const rule = rules.find(ru => ru.staffName === r.staffName && ru.staffRole === 'TeleCalling');
+          const p = parseFloat(pctOverrides[`${r.staffName}::TeleCalling`] ?? String(rule?.percentage ?? '0')) || 0;
+          return s + (r.receiveTotal * p) / 100;
+        }, 0);
+        const techSal = techRows2.reduce((s, r) => {
+          const rule = rules.find(ru => ru.staffName === r.staffName && ru.staffRole === 'Technical');
+          const p = parseFloat(pctOverrides[`${r.staffName}::Technical`] ?? String(rule?.percentage ?? '0')) || 0;
+          return s + (r.receiveTotal * p) / 100;
+        }, 0);
 
         const renderVTable = (rows: typeof allRows, roleColor: string, roleLabel: string) => (
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-800 overflow-hidden">
@@ -524,13 +534,20 @@ export default function SalarySection({ contacts = [] }: { contacts?: Contact[] 
                     <th className="px-5 py-3 text-center">Calculation</th><th className="px-5 py-3 text-right">Salary = A×B÷100</th><th className="px-5 py-3 text-center">Save</th>
                   </tr></thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-slate-800">
-                    {rows.map(row => { const k=`${row.staffName}::${row.staffRole}`; const p=parseFloat(pctOverrides[k]??'0')||0; const sal=(row.receiveTotal*p)/100; const saving=savingKey===k; const saved=savedKey===k;
+                    {rows.map(row => {
+                      const k = `${row.staffName}::${row.staffRole}`;
+                      const savedRule = rules.find(r => r.staffName === row.staffName && r.staffRole === row.staffRole);
+                      const defaultPct = savedRule ? String(savedRule.percentage) : '0';
+                      const p = parseFloat(pctOverrides[k] ?? defaultPct) || 0;
+                      const sal = (row.receiveTotal * p) / 100;
+                      const saving = savingKey === k;
+                      const saved = savedKey === k;
                       return (<React.Fragment key={k}>
                         <tr className="hover:bg-gray-50/40 dark:hover:bg-slate-800/30 transition-colors">
                           <td className="px-5 py-3.5"><div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0">{row.staffName.charAt(0).toUpperCase()}</div><div><span className="font-bold text-sm text-gray-900 dark:text-white">{row.staffName}</span><p className="text-[10px] text-gray-400">{row.contacts.length} contact{row.contacts.length!==1?'s':''}</p></div></div></td>
                           <td className="px-5 py-3.5 text-center"><span className="inline-flex items-center justify-center min-w-[28px] h-6 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-black px-2">{row.contactCount}</span></td>
                           <td className="px-5 py-3.5 text-right font-bold text-gray-800 dark:text-slate-200 text-sm">{fmt(row.receiveTotal)}</td>
-                          <td className="px-5 py-3.5"><div className="flex items-center gap-1.5 justify-center"><div className="relative"><input type="number" min="0" max="100" step="0.5" value={pctOverrides[k]??'0'} onChange={e=>setPctOverrides(pr=>({...pr,[k]:e.target.value}))} className="w-24 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-bold text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-primary/20 outline-none pr-7" /><Percent size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div></td>
+                          <td className="px-5 py-3.5"><div className="flex items-center gap-1.5 justify-center"><div className="relative"><input type="number" min="0" max="100" step="0.5" value={pctOverrides[k] ?? defaultPct} onChange={e=>setPctOverrides(pr=>({...pr,[k]:e.target.value}))} className="w-24 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-bold text-gray-900 dark:text-white text-right focus:ring-2 focus:ring-primary/20 outline-none pr-7" /><Percent size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" /></div></div></td>
                           <td className="px-5 py-3.5 text-center"><span className="text-[11px] font-mono font-bold text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">{fmt(row.receiveTotal)} × {p}%</span></td>
                           <td className="px-5 py-3.5 text-right"><span className="font-black text-base text-emerald-600 dark:text-emerald-400">{fmt(sal)}</span></td>
                           <td className="px-5 py-3.5 text-center"><button onClick={()=>savePct(row.staffName,row.staffRole)} disabled={saving} className={cn('inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',saved?'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600':'bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20',saving&&'opacity-60 cursor-not-allowed')}>{saving?<Loader2 size={12} className="animate-spin"/>:saved?<CheckCircle2 size={12}/>:<Save size={12}/>}{saved?'Saved':'Save'}</button></td>
@@ -542,7 +559,14 @@ export default function SalarySection({ contacts = [] }: { contacts?: Contact[] 
                   <tfoot><tr className="bg-gray-50/80 dark:bg-slate-800/60 border-t-2 border-gray-200 dark:border-slate-700">
                     <td colSpan={2} className="px-5 py-3 text-xs font-bold text-gray-500 uppercase tracking-wider">{roleLabel} Total</td>
                     <td className="px-5 py-3 text-right font-black text-gray-800 dark:text-slate-200 text-sm">{fmt(rows.reduce((s,r)=>s+r.receiveTotal,0))}</td><td/><td/>
-                    <td className="px-5 py-3 text-right font-black text-emerald-600 dark:text-emerald-400 text-base">{fmt(rows.reduce((s,r)=>s+(r.receiveTotal*(parseFloat(pctOverrides[`${r.staffName}::${r.staffRole}`]??'0')||0))/100,0))}</td><td/>
+                    <td className="px-5 py-3 text-right font-black text-emerald-600 dark:text-emerald-400 text-base">
+                      {fmt(rows.reduce((s, r) => {
+                        const rule = rules.find(ru => ru.staffName === r.staffName && ru.staffRole === r.staffRole);
+                        const p = parseFloat(pctOverrides[`${r.staffName}::${r.staffRole}`] ?? String(rule?.percentage ?? '0')) || 0;
+                        return s + (r.receiveTotal * p) / 100;
+                      }, 0))}
+                    </td>
+                    <td/>
                   </tr></tfoot>
                 </table>
               </div>

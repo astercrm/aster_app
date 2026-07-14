@@ -90,8 +90,22 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
   const [verificationSelectedIds, setVerificationSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingVerification, setIsDeletingVerification] = useState(false);
   const [verificationSearch, setVerificationSearch] = useState('');
-  const [verificationDateFrom, setVerificationDateFrom] = useState('');
-  const [verificationDateTo, setVerificationDateTo] = useState('');
+  const [verificationStatusFilter, setVerificationStatusFilter] = useState<'all' | 'verified' | 'not_verified'>('all');
+  const [verificationDateFrom, setVerificationDateFrom] = useState(() => {
+    const d = new Date();
+    const prevMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    const y = prevMonth.getFullYear();
+    const m = String(prevMonth.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}-01`;
+  });
+  const [verificationDateTo, setVerificationDateTo] = useState(() => {
+    const d = new Date();
+    const currMonthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    const y = currMonthEnd.getFullYear();
+    const m = String(currMonthEnd.getMonth() + 1).padStart(2, '0');
+    const day = String(currMonthEnd.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
   const [showVerificationDateFilter, setShowVerificationDateFilter] = useState(false);
 
   // ── Staff Filter state (all roles) ──
@@ -1606,6 +1620,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                           </button>
                         )}
                       </div>
+                      <select
+                        value={verificationStatusFilter}
+                        onChange={e => setVerificationStatusFilter(e.target.value as any)}
+                        className="bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm font-bold text-gray-700 dark:text-slate-300 focus:ring-2 focus:ring-cyan-500/20 outline-none"
+                      >
+                        <option value="all">All Verification Statuses</option>
+                        <option value="verified">Verified Only</option>
+                        <option value="not_verified">Not Verified Only</option>
+                      </select>
                       <button
                         onClick={() => setShowVerificationDateFilter(v => !v)}
                         className={cn(
@@ -1672,6 +1695,15 @@ export default function Contacts({ contacts, setContacts, user }: ContactsProps)
                     const vToDate = verificationDateTo ? new Date(verificationDateTo + 'T23:59:59') : null;
                     const filteredVerificationContacts = contacts
                       .filter(c => (c.transactionId || '').trim() !== '')
+                      .filter(c => {
+                        if (verificationStatusFilter === 'verified') {
+                          return c.contactVerificationStatus === 'verified';
+                        }
+                        if (verificationStatusFilter === 'not_verified') {
+                          return c.contactVerificationStatus === 'not_verified';
+                        }
+                        return true;
+                      })
                       .filter(c => {
                         // Date range filter
                         if (vFromDate || vToDate) {
